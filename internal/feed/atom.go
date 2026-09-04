@@ -62,11 +62,9 @@ func GenerateAtomXML(profile *model.Profile, posts []model.Post, feedSelfURL str
 		updatedTime = posts[0].PublishedAt.UTC()
 	}
 
-	title := fmt.Sprintf("%s (@%s)", profile.Handle, profile.Handle)
-	if profile.FullName != "" {
-		title = fmt.Sprintf("%s (@%s) - %s", profile.FullName, profile.Handle, strings.ToUpper(profile.Platform))
-	} else {
-		title = fmt.Sprintf("@%s - %s Feed", profile.Handle, strings.ToUpper(profile.Platform))
+	title := fmt.Sprintf("@%s", profile.Handle)
+	if profile.FullName != "" && profile.FullName != profile.Handle {
+		title = fmt.Sprintf("%s (@%s)", profile.FullName, profile.Handle)
 	}
 
 	atomFeed := AtomFeed{

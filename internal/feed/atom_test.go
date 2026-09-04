@@ -52,8 +52,11 @@ func TestGenerateAtomXML(t *testing.T) {
 	if !strings.Contains(xmlStr, `<feed xmlns="http://www.w3.org/2005/Atom">`) {
 		t.Errorf("missing Atom feed namespace")
 	}
-	if !strings.Contains(xmlStr, "<title>National Geographic (@natgeo) - INSTAGRAM</title>") {
+	if !strings.Contains(xmlStr, "<title>National Geographic (@natgeo)</title>") {
 		t.Errorf("title not rendered properly in XML: %s", xmlStr)
+	}
+	if strings.Contains(xmlStr, "INSTAGRAM") {
+		t.Errorf("feed title should not contain platform suffix INSTAGRAM: %s", xmlStr)
 	}
 	if !strings.Contains(xmlStr, `<link href="http://localhost:9527/feeds/instagram/natgeo-feed.xml" rel="self" type="application/atom+xml"></link>`) {
 		t.Errorf("self link not found in XML")
@@ -210,5 +213,57 @@ func TestCleanEntryTitleAndContent(t *testing.T) {
 		if tt.expectNotIn != "" && strings.Contains(htmlContent, tt.expectNotIn) {
 			t.Errorf("post %s: did not expect HTML to contain %q, got: %s", tt.post.URL, tt.expectNotIn, htmlContent)
 		}
+	}
+}
+
+func TestFeedTitleWithoutPlatform(t *testing.T) {
+	// Profile without FullName
+	p1 := &model.Profile{
+		Platform: "instagram",
+		Handle:   "myu_stories",
+		URL:      "https://www.instagram.com/myu_stories/",
+	}
+	xml1, err := GenerateAtomXML(p1, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(xml1), "<title>@myu_stories</title>") {
+		t.Errorf("expected <title>@myu_stories</title>, got %s", string(xml1))
+	}
+	if strings.Contains(string(xml1), "INSTAGRAM") {
+		t.Errorf("should not contain INSTAGRAM: %s", string(xml1))
+	}
+
+	// Profile with FullName identical to Handle
+	p2 := &model.Profile{
+		Platform: "instagram",
+		Handle:   "nasa",
+		FullName: "nasa",
+		URL:      "https://www.instagram.com/nasa/",
+	}
+	xml2, err := GenerateAtomXML(p2, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(xml2), "<title>@nasa</title>") {
+		t.Errorf("expected <title>@nasa</title>, got %s", string(xml2))
+	}
+
+	// Profile with FullName distinct from Handle
+	p3 := &model.Profile{
+		Platform: "instagram",
+		Handle:   "natgeo",
+		FullName: "National Geographic",
+		URL:      "https://www.instagram.com/natgeo/",
+	}
+	xml3, err := GenerateAtomXML(p3, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(xml3), "<title>National Geographic (@natgeo)</title>") {
+		t.Errorf("expected <title>National Geographic (@natgeo)</title>, got %s", string(xml3))
+	}
+	if strings.Contains(string(xml3), "INSTAGRAM") {
+		t.Errorf("should not contain INSTAGRAM: %s", string(xml3))
 	}
 }
