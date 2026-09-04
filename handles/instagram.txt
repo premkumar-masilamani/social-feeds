@@ -1,0 +1,12 @@
+# Instagram Handles (one handle per line)
+#
+# Format:
+#   username
+#   @username
+#
+# Private Handles:
+#   To track handles locally without committing them to git, create:
+#   handles/instagram.local.txt
+
+nasa
+natgeo
