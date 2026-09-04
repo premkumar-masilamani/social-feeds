@@ -57,6 +57,7 @@ func (h *Handler) HandleIndex(w http.ResponseWriter, r *http.Request) {
 		IsSyncing:    isSyncing,
 		LastSyncTime: lastSync,
 		LastError:    lastErr,
+		Notice:       ParseSyncNotice(lastErr),
 		TotalFeeds:   len(stats),
 		TotalItems:   totalItems,
 	}

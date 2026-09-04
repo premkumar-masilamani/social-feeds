@@ -173,6 +173,31 @@ func TestHandleHealthz(t *testing.T) {
 	}
 }
 
+func TestParseSyncNotice(t *testing.T) {
+	// Empty string
+	if ParseSyncNotice("") != nil {
+		t.Errorf("expected nil notice for empty error")
+	}
+
+	// Rate limit 429
+	notice429 := ParseSyncNotice("rate limited (HTTP 429) by Instagram when fetching @user")
+	if notice429 == nil || notice429.Severity != "warning" || !contains(notice429.Title, "429") {
+		t.Errorf("unexpected 429 notice: %+v", notice429)
+	}
+	if !contains(notice429.Remedy, "Wait 5–10 minutes") {
+		t.Errorf("remedy should advise waiting: %s", notice429.Remedy)
+	}
+
+	// Login wall 401
+	notice401 := ParseSyncNotice("access denied (HTTP 401) by Instagram for @user (login wall)")
+	if notice401 == nil || notice401.Severity != "error" || !contains(notice401.Title, "401") {
+		t.Errorf("unexpected 401 notice: %+v", notice401)
+	}
+	if !contains(notice401.Remedy, "INSTAGRAM_SESSION_ID") {
+		t.Errorf("remedy should advise setting INSTAGRAM_SESSION_ID: %s", notice401.Remedy)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && len(substr) > 0 && s[0:len(substr)] == substr || (len(s) > 1 && contains(s[1:], substr))))
 }

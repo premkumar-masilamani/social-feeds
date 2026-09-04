@@ -3,10 +3,20 @@ package server
 import (
 	"html/template"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/premkumar-masilamani/social-media-rss-feed/internal/model"
 )
+
+// SyncNotice represents a user-friendly error explanation and actionable remedy.
+type SyncNotice struct {
+	Title    string
+	Message  string
+	Remedy   string
+	Severity string // "warning" or "error"
+	RawError string
+}
 
 // DashboardData holds view models for rendering the index page.
 type DashboardData struct {
@@ -15,20 +25,66 @@ type DashboardData struct {
 	IsSyncing    bool
 	LastSyncTime time.Time
 	LastError    string
+	Notice       *SyncNotice
 	TotalFeeds   int
 	TotalItems   int
 }
 
-var funcMap = template.FuncMap{
-	"formatBytes": func(b int64) string {
-		if b < 1024 {
-			return "< 1 KB"
+// ParseSyncNotice converts technical error logs into clean, human-friendly explanations and remedies.
+func ParseSyncNotice(rawErr string) *SyncNotice {
+	if rawErr == "" {
+		return nil
+	}
+
+	lower := strings.ToLower(rawErr)
+
+	if strings.Contains(lower, "429") || strings.Contains(lower, "rate limit") {
+		return &SyncNotice{
+			Title:    "Instagram Rate Limit Active (HTTP 429)",
+			Message:  "Instagram is temporarily throttling requests for one or more profiles because too many requests were made in a short time.",
+			Remedy:   "Wait 5–10 minutes without clicking \"Sync Now\" to let Instagram's temporary cooldown counter reset. Your existing feeds are completely safe and still available.",
+			Severity: "warning",
+			RawError: rawErr,
 		}
-		if b < 1024*1024 {
-			return template.HTMLEscapeString(template.HTMLEscapeString("")) + template.HTMLEscapeString(string(rune(0))) // fallback
+	}
+
+	if strings.Contains(lower, "401") || strings.Contains(lower, "login wall") || strings.Contains(lower, "instagram_session_id") {
+		return &SyncNotice{
+			Title:    "Instagram Session Required or Expired (HTTP 401)",
+			Message:  "Instagram is enforcing a login wall on this public profile, requiring an active session cookie.",
+			Remedy:   "Copy your browser's sessionid cookie, save it in your .env file as INSTAGRAM_SESSION_ID=..., and click \"Sync Now\".",
+			Severity: "error",
+			RawError: rawErr,
 		}
-		return ""
-	},
+	}
+
+	if strings.Contains(lower, "private") {
+		return &SyncNotice{
+			Title:    "Private Profile Detected",
+			Message:  "One of the requested profiles is set to Private on Instagram.",
+			Remedy:   "Remove private handles from instagram.txt. Only public accounts can be syndicated into RSS feeds.",
+			Severity: "warning",
+			RawError: rawErr,
+		}
+	}
+
+	if strings.Contains(lower, "not found") {
+		return &SyncNotice{
+			Title:    "Profile Not Found",
+			Message:  "The requested username could not be found on Instagram.",
+			Remedy:   "Check instagram.txt to ensure the username or URL is spelled correctly.",
+			Severity: "warning",
+			RawError: rawErr,
+		}
+	}
+
+	return &SyncNotice{
+		Title:    "Sync Notice",
+		Message:  "Some profiles could not be updated during the latest sync pass. Existing feeds were preserved.",
+		Remedy:   "Check your network connection and verify your input handles in the text file.",
+		Severity: "warning",
+		RawError: rawErr,
+	}
 }
 
 const indexTemplate = `<!DOCTYPE html>
@@ -87,6 +143,97 @@ const indexTemplate = `<!DOCTYPE html>
       color: var(--text-muted);
     }
     .status-item strong { color: var(--text); }
+    .notice-card {
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+    .notice-warning {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid #f59e0b;
+    }
+    .notice-error {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid #ef4444;
+    }
+    .notice-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .notice-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .notice-warning .notice-title { color: #fbbf24; }
+    .notice-error .notice-title { color: #fca5a5; }
+    .notice-badge {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .notice-warning .notice-badge {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+    .notice-error .notice-badge {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+    }
+    .notice-message {
+      color: var(--text);
+      font-size: 0.95rem;
+      margin-bottom: 0.85rem;
+      line-height: 1.4;
+    }
+    .notice-remedy-box {
+      background: rgba(15, 23, 42, 0.65);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      padding: 0.85rem 1.1rem;
+      margin-bottom: 0.75rem;
+    }
+    .notice-remedy-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .notice-remedy-text {
+      font-size: 0.92rem;
+      color: #e2e8f0;
+      line-height: 1.45;
+    }
+    .notice-details {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    .notice-details summary:hover {
+      color: var(--text);
+    }
+    .notice-details code {
+      display: block;
+      margin-top: 0.4rem;
+      padding: 0.5rem 0.75rem;
+      background: #0f172a;
+      border-radius: 6px;
+      word-break: break-all;
+      color: #94a3b8;
+      font-size: 0.78rem;
+    }
     .platform-section { margin-bottom: 2.5rem; }
     .platform-title {
       font-size: 1.3rem;
@@ -156,8 +303,6 @@ const indexTemplate = `<!DOCTYPE html>
     .copy-btn:hover { background: #475569; }
     .empty-state { text-align: center; padding: 3rem; background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border); color: var(--text-muted); }
     .empty-state code { background: #0f172a; padding: 0.2rem 0.4rem; border-radius: 4px; color: var(--accent); }
-    .alert-banner { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.9rem; }
-    .alert-error { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--error); color: #fca5a5; }
     .spinner {
       display: inline-block;
       width: 14px;
@@ -185,9 +330,23 @@ const indexTemplate = `<!DOCTYPE html>
       </div>
     </header>
 
-    {{if .LastError}}
-    <div class="alert-banner alert-error">
-      <strong>Sync Notice:</strong> {{.LastError}}
+    {{if .Notice}}
+    <div class="notice-card notice-{{.Notice.Severity}}">
+      <div class="notice-header">
+        <div class="notice-title">
+          {{if eq .Notice.Severity "warning"}}⏳{{else}}🔑{{end}} {{.Notice.Title}}
+        </div>
+        <span class="notice-badge">{{if eq .Notice.Severity "warning"}}Temporary Notice{{else}}Action Needed{{end}}</span>
+      </div>
+      <p class="notice-message">{{.Notice.Message}}</p>
+      <div class="notice-remedy-box">
+        <div class="notice-remedy-label">💡 Recommended Remedy:</div>
+        <div class="notice-remedy-text">{{.Notice.Remedy}}</div>
+      </div>
+      <details class="notice-details">
+        <summary>View technical log</summary>
+        <code>{{.Notice.RawError}}</code>
+      </details>
     </div>
     {{end}}
 
@@ -201,7 +360,7 @@ const indexTemplate = `<!DOCTYPE html>
     {{if eq .TotalFeeds 0}}
     <div class="empty-state">
       <h2>No Feeds Generated Yet</h2>
-      <p style="margin-top: 0.75rem;">Create an <code>instagram.txt</code> file with public profile URLs (one per line) and click <strong>Sync Now</strong>.</p>
+      <p style="margin-top: 0.75rem;">Add handles to <code>instagram.txt</code> (one per line) and click <strong>Sync Now</strong>.</p>
     </div>
     {{else}}
       {{range $platform, $feeds := .Platforms}}
