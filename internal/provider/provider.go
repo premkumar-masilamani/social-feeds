@@ -52,15 +52,12 @@ func AllProviders() []PlatformProvider {
 	return list
 }
 
-// GetPlatformSourceFiles returns all existing source files (public, .local, .private, or subdirectories)
+// GetPlatformSourceFiles returns all existing source files (public and .local)
 // for the given platform in handlesDir.
 func GetPlatformSourceFiles(handlesDir, platformName string) []string {
 	candidates := []string{
 		filepath.Join(handlesDir, platformName+".txt"),
 		filepath.Join(handlesDir, platformName+".local.txt"),
-		filepath.Join(handlesDir, platformName+".private.txt"),
-		filepath.Join(handlesDir, "private", platformName+".txt"),
-		filepath.Join(handlesDir, "local", platformName+".txt"),
 	}
 
 	var found []string

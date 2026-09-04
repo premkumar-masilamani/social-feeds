@@ -43,7 +43,4 @@ bin/
 
 # Private social media handles (any platform)
 handles/*.local.txt
-handles/*.private.txt
-handles/local/
-handles/private/
 

@@ -108,7 +108,7 @@ func ensureSampleInputFiles(handlesDir string) {
 #
 # Private Handles:
 #   To track handles locally without committing them to git, create:
-#   handles/instagram.local.txt (or place in handles/private/instagram.txt)
+#   handles/instagram.local.txt
 
 myu_stories
 `

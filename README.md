@@ -54,9 +54,9 @@ nasa
 - **Post or Reel URL** (`https://www.instagram.com/reel/DcFuLeATEc9/`): Look at the creator's avatar/username on the post page.
 
 #### Private / Uncommitted Handles:
-To track personal or private handles without committing them to git, create a `.local.txt` file:
-- `handles/instagram.local.txt` (or `handles/private/instagram.txt`)
-All `*.local.txt` and `private/` files are automatically ignored by git. During sync, public and private handles are seamlessly merged and deduplicated.
+To track personal or private handles without committing them to git, create a `<platform>.local.txt` file alongside the public file:
+- `handles/instagram.local.txt`
+All `handles/*.local.txt` files are automatically ignored by git. During sync, public and local handles are seamlessly merged and deduplicated.
 
 ### 3. Open Web Dashboard
 
