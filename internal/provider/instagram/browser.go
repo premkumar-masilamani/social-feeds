@@ -36,6 +36,17 @@ type RawDOMPost struct {
 	Caption string `json:"caption"`
 }
 
+// PageLoadStatus holds the outcome of checking the profile DOM during loading.
+type PageLoadStatus struct {
+	URL        string `json:"url"`
+	Title      string `json:"title"`
+	PostCount  int    `json:"post_count"`
+	IsLogin    bool   `json:"is_login"`
+	IsNotFound bool   `json:"is_not_found"`
+	IsPrivate  bool   `json:"is_private"`
+	IsNoPosts  bool   `json:"is_no_posts"`
+}
+
 // BrowserClient handles automated headless scraping of Instagram.
 type BrowserClient struct {
 	userDataDir   string
@@ -114,7 +125,6 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 	profileURL := fmt.Sprintf("https://www.instagram.com/%s/", profile.Handle)
 	log.Printf("[Browser] Navigating to %s ...", profileURL)
 
-	var pageTitle, pageHTML string
 	var rawItems []RawDOMPost
 
 	extractScript := `
@@ -137,28 +147,112 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 		})()
 	`
 
-	navigateTasks := chromedp.Tasks{
-		chromedp.Navigate(profileURL),
-		chromedp.Sleep(4 * time.Second),
-		chromedp.Title(&pageTitle),
-		chromedp.Evaluate(extractScript, &rawItems),
-		chromedp.OuterHTML("html", &pageHTML),
+	pageCheckScript := `
+		(() => {
+			const href = window.location.href || '';
+			const title = document.title || '';
+			const body = document.body;
+			const bodyText = body ? (body.innerText || '') : '';
+			const lowerHref = href.toLowerCase();
+			const lowerTitle = title.toLowerCase();
+			const lowerBody = bodyText.toLowerCase();
+
+			const isLogin = lowerHref.includes('/accounts/login') ||
+			                lowerHref.includes('is_from_rle') ||
+			                lowerBody.includes('log in to instagram') ||
+			                lowerTitle.startsWith('login • instagram');
+
+			const isNotFound = lowerTitle.includes('page not found') ||
+			                   lowerBody.includes("sorry, this page isn't available") ||
+			                   lowerBody.includes('link you followed may be broken');
+
+			const isPrivate = lowerBody.includes('this account is private') ||
+			                  lowerBody.includes('this profile is private');
+
+			const isNoPosts = lowerBody.includes('no posts yet') ||
+			                  lowerBody.includes('no photos or videos yet');
+
+			const anchors = document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]');
+
+			return {
+				url: href,
+				title: title,
+				post_count: anchors.length,
+				is_login: isLogin,
+				is_not_found: isNotFound,
+				is_private: isPrivate,
+				is_no_posts: isNoPosts
+			};
+		})()
+	`
+
+	if err := chromedp.Run(browserCtx, chromedp.Navigate(profileURL)); err != nil {
+		return nil, fmt.Errorf("navigating to profile %s via browser: %w", profile.Handle, err)
 	}
 
-	if err := chromedp.Run(browserCtx, navigateTasks); err != nil {
-		return nil, fmt.Errorf("fetching profile %s via browser: %w", profile.Handle, err)
+	// Wait dynamically up to 15 seconds for profile content to load
+	waitCtx, waitCancel := context.WithTimeout(browserCtx, 15*time.Second)
+	defer waitCancel()
+
+	var loadStatus PageLoadStatus
+	for {
+		select {
+		case <-waitCtx.Done():
+			goto InitialWaitDone
+		default:
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		var cur PageLoadStatus
+		if err := chromedp.Run(browserCtx, chromedp.Evaluate(pageCheckScript, &cur)); err != nil {
+			continue
+		}
+		loadStatus = cur
+
+		// Immediate error conditions
+		if loadStatus.IsNotFound {
+			return nil, fmt.Errorf("profile @%s not found on Instagram", profile.Handle)
+		}
+		if loadStatus.IsPrivate {
+			return nil, fmt.Errorf("profile @%s is private; only public profiles can be syndicated", profile.Handle)
+		}
+		if loadStatus.IsLogin {
+			return nil, fmt.Errorf("Instagram redirected to login wall / rate limit for @%s (url: %s); preserving existing feed", profile.Handle, loadStatus.URL)
+		}
+
+		// Success conditions
+		if loadStatus.PostCount > 0 {
+			// Stabilize for 1s to let images and child DOM nodes finish settling
+			time.Sleep(1 * time.Second)
+			break
+		}
+		if loadStatus.IsNoPosts {
+			log.Printf("[Browser] Profile @%s explicitly has no posts", profile.Handle)
+			break
+		}
 	}
 
-	if strings.Contains(strings.ToLower(pageTitle), "page not found") {
-		return nil, fmt.Errorf("profile @%s not found on Instagram", profile.Handle)
+InitialWaitDone:
+
+	// If no posts were found and not confirmed empty, treat as load timeout
+	if loadStatus.PostCount == 0 && !loadStatus.IsNoPosts {
+		if loadStatus.IsLogin {
+			return nil, fmt.Errorf("Instagram redirected to login wall / rate limit for @%s (url: %s); preserving existing feed", profile.Handle, loadStatus.URL)
+		}
+		return nil, fmt.Errorf("timeout waiting for page content to load for @%s (0 posts detected); preserving existing feed", profile.Handle)
 	}
 
 	// Update profile metadata if extracted
-	if profile.FullName == "" && strings.Contains(pageTitle, "(") {
-		parts := strings.Split(pageTitle, "(")
+	if profile.FullName == "" && strings.Contains(loadStatus.Title, "(") {
+		parts := strings.Split(loadStatus.Title, "(")
 		if len(parts) > 0 {
 			profile.FullName = strings.TrimSpace(parts[0])
 		}
+	}
+
+	if err := chromedp.Run(browserCtx, chromedp.Evaluate(extractScript, &rawItems)); err != nil {
+		return nil, fmt.Errorf("extracting posts for @%s: %w", profile.Handle, err)
 	}
 
 	allRawMap := make(map[string]RawDOMPost)
@@ -194,6 +288,7 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 			if (sv) sv.scrollTop = sv.scrollHeight;
 			const anchors = document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]');
 			if (anchors.length > 0) anchors[anchors.length - 1].scrollIntoView();
+			window.dispatchEvent(new Event('scroll'));
 		})()
 	`
 
@@ -208,18 +303,47 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 		}
 
 		prevCount := len(orderedShortcodes)
-		var scrolledItems []RawDOMPost
 
-		scrollTasks := chromedp.Tasks{
-			chromedp.Evaluate(scrollScript, nil),
-			chromedp.Sleep(2500 * time.Millisecond),
-			chromedp.Evaluate(extractScript, &scrolledItems),
-		}
-
-		if err := chromedp.Run(browserCtx, scrollTasks); err != nil {
+		// 1. Trigger scroll action
+		if err := chromedp.Run(browserCtx, chromedp.Evaluate(scrollScript, nil)); err != nil {
 			log.Printf("[Browser] Warning on scroll iteration %d for @%s: %v", iter, profile.Handle, err)
 			break
 		}
+
+		// 2. Wait dynamically for new items to load into the DOM (poll every 500ms up to 5s)
+		scrollWaitCtx, scrollWaitCancel := context.WithTimeout(browserCtx, 5*time.Second)
+		var scrolledItems []RawDOMPost
+
+		for {
+			select {
+			case <-scrollWaitCtx.Done():
+				goto ScrollWaitDone
+			default:
+			}
+
+			time.Sleep(500 * time.Millisecond)
+			scrolledItems = nil
+			if err := chromedp.Run(browserCtx, chromedp.Evaluate(extractScript, &scrolledItems)); err != nil {
+				break
+			}
+
+			// Check if any new shortcodes were discovered
+			hasNew := false
+			for _, item := range scrolledItems {
+				sc := extractShortcode(item.HRef)
+				if sc != "" && allRawMap[sc].HRef == "" {
+					hasNew = true
+					break
+				}
+			}
+
+			if hasNew {
+				// New content has loaded!
+				break
+			}
+		}
+	ScrollWaitDone:
+		scrollWaitCancel()
 
 		addRawItems(scrolledItems)
 		newFound := len(orderedShortcodes) - prevCount

@@ -163,11 +163,20 @@ func (e *SyncEngine) runSync(ctx context.Context) error {
 			}
 		}
 
-		for _, targetProfile := range targets {
+		for i, targetProfile := range targets {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
+			}
+
+			if i > 0 && p.Name() != "mockplatform" {
+				// Polite spacing between profile scrapes to avoid triggering Instagram WAF rate limits
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(2500 * time.Millisecond):
+				}
 			}
 
 			sinceID := e.storage.GetLatestPostID(p.Name(), targetProfile.Handle)
