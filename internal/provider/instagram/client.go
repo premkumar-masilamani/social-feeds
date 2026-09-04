@@ -128,6 +128,17 @@ type WebProfileResponse struct {
 	Message string `json:"message"`
 }
 
+func (c *Client) getSessionID() string {
+	if c.sessionID != "" {
+		return c.sessionID
+	}
+	s := strings.TrimSpace(os.Getenv("INSTAGRAM_SESSION_ID"))
+	if s != "" {
+		return s
+	}
+	return strings.TrimSpace(os.Getenv("INSTAGRAM_COOKIE"))
+}
+
 // FetchProfileData performs an HTTP request to fetch Instagram user metadata and timeline media.
 func (c *Client) FetchProfileData(ctx context.Context, username string) (*WebProfileResponse, error) {
 	endpoint := fmt.Sprintf(webProfileInfoURL, username)
@@ -144,11 +155,20 @@ func (c *Client) FetchProfileData(ctx context.Context, username string) (*WebPro
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.Header.Set("Referer", fmt.Sprintf("https://www.instagram.com/%s/", username))
 
-	if c.sessionID != "" {
-		if strings.Contains(c.sessionID, "=") {
-			req.Header.Set("Cookie", c.sessionID)
+	sessionID := c.getSessionID()
+	if sessionID != "" {
+		if strings.Contains(sessionID, "=") {
+			req.Header.Set("Cookie", sessionID)
 		} else {
-			req.Header.Set("Cookie", fmt.Sprintf("sessionid=%s", c.sessionID))
+			parts := strings.Split(sessionID, "%3A")
+			if len(parts) == 1 {
+				parts = strings.Split(sessionID, ":")
+			}
+			if len(parts) > 1 && parts[0] != "" {
+				req.Header.Set("Cookie", fmt.Sprintf("sessionid=%s; ds_user_id=%s;", sessionID, parts[0]))
+			} else {
+				req.Header.Set("Cookie", fmt.Sprintf("sessionid=%s;", sessionID))
+			}
 		}
 	}
 
@@ -159,11 +179,14 @@ func (c *Client) FetchProfileData(ctx context.Context, username string) (*WebPro
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return nil, fmt.Errorf("rate limited (HTTP 429) by Instagram when fetching @%s; try increasing poll frequency or setting INSTAGRAM_SESSION_ID", username)
+		return nil, fmt.Errorf("rate limited (HTTP 429) by Instagram when fetching @%s; wait a few minutes or reduce poll frequency", username)
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("access denied (HTTP %d) by Instagram for @%s (login wall); set INSTAGRAM_SESSION_ID env var to authenticate", resp.StatusCode, username)
+		if sessionID == "" {
+			return nil, fmt.Errorf("access denied (HTTP %d) by Instagram for @%s (login wall); set INSTAGRAM_SESSION_ID in .env to authenticate", resp.StatusCode, username)
+		}
+		return nil, fmt.Errorf("access denied (HTTP %d) by Instagram for @%s; your INSTAGRAM_SESSION_ID may be expired or invalid", resp.StatusCode, username)
 	}
 
 	if resp.StatusCode != http.StatusOK {
