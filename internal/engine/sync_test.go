@@ -93,7 +93,7 @@ func TestSyncEngine(t *testing.T) {
 	}
 
 	// Verify feeds created
-	recentPath := storage.GetRecentFeedPath("mockplatform", "tester")
+	recentPath := storage.GetFeedPath("mockplatform", "tester")
 	if _, err := os.Stat(recentPath); err != nil {
 		t.Fatalf("recent feed missing: %v", err)
 	}
@@ -121,6 +121,15 @@ func TestSyncEngine(t *testing.T) {
 	time.Sleep(2 * time.Millisecond)
 	_ = eng.TriggerSync(context.Background()) // Should either start after or skip safely
 	wg.Wait()
+
+	// Wait for any background goroutine from TriggerSync to complete
+	for i := 0; i < 50; i++ {
+		isSyncing, _, _ := eng.Status()
+		if !isSyncing {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestSyncEngine_LocalHandlesAndDeduplication(t *testing.T) {
@@ -158,10 +167,10 @@ func TestSyncEngine_LocalHandlesAndDeduplication(t *testing.T) {
 		t.Errorf("expected 2 fetch calls (tester deduplicated + private_user), got %d", mock.fetchCalls)
 	}
 
-	if _, err := os.Stat(storage.GetRecentFeedPath("mockplatform", "tester")); err != nil {
+	if _, err := os.Stat(storage.GetFeedPath("mockplatform", "tester")); err != nil {
 		t.Errorf("feed for tester missing: %v", err)
 	}
-	if _, err := os.Stat(storage.GetRecentFeedPath("mockplatform", "private_user")); err != nil {
+	if _, err := os.Stat(storage.GetFeedPath("mockplatform", "private_user")); err != nil {
 		t.Errorf("feed for private_user missing: %v", err)
 	}
 }

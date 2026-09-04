@@ -9,3 +9,4 @@
 #   handles/instagram.local.txt
 
 nasa
+natgeo

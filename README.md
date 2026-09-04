@@ -2,16 +2,14 @@
 
 A fast, lightweight, and extensible CLI daemon written in Go that generates local **Atom 1.0 XML feeds** for public social media profiles (starting with Instagram).
 
-It runs quietly in the background on your machine, maintains dual feeds per profile (latest 15 posts vs. full archive), performs idempotent delta syncs, and provides a web dashboard on port `9527` with a global **"Sync Now"** button.
+It runs quietly in the background on your machine, maintains a clean Atom feed per profile (limited to latest 25 posts), performs idempotent delta syncs, and provides a web dashboard on port `9527` with a global **"Sync Now"** button.
 
 ---
 
 ## Features
 
 - ⚡ **Zero Binary Media Downloads:** Only downloads metadata (captions, timestamps, URLs, author) and embeds remote CDN thumbnail images (`<img src="...">`) directly inside feed items so your RSS reader displays pictures without bloating your hard drive.
-- 🔄 **Dual Atom Feeds Per Profile:**
-  - `<handle>-feed.xml`: Latest 15 posts (matching first view of profile grid, minimal reader overhead).
-  - `<handle>-all-feed.xml`: Full cumulative archive of all discovered and scrolled posts.
+- 🔄 **Clean Atom Feed Per Profile (Limited to 25 Posts):** Generates `<handle>-feed.xml` containing the latest 25 posts per profile, ideal for fast RSS reader consumption without unnecessary bloat.
 - 🛡️ **Headless Chrome Automation:** Uses automated headless Chrome via Chrome DevTools Protocol (`chromedp`) with persistent browser profiles (`.browser_profile`) to seamlessly use your existing logged-in session, navigate profiles, and trigger infinite scrolling.
 - 🔁 **Idempotent Delta Syncing:** Uses the XML feeds on disk as the state store to detect known posts, merge new content, and prevent duplicates.
 - 🖥️ **Web Dashboard & "Sync Now":** Embedded web dashboard on `http://localhost:9527` displaying profiles, feed URLs, item counts, file sizes, and an on-demand "Sync Now" button.
@@ -65,8 +63,7 @@ Navigate to:
 http://localhost:9527
 ```
 Subscribe to any feed link in your favorite RSS reader (e.g. NetNewsWire, Reeder, Feedly, FreshRSS):
-- Recent 15: `http://localhost:9527/feeds/instagram/natgeo-feed.xml`
-- Full Archive: `http://localhost:9527/feeds/instagram/natgeo-all-feed.xml`
+- `http://localhost:9527/feeds/instagram/natgeo-feed.xml`
 
 ---
 

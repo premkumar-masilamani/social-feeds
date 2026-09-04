@@ -25,14 +25,11 @@ type Profile struct {
 
 // FeedStats captures file statistics and item counts for UI display.
 type FeedStats struct {
-	Platform            string    `json:"platform"`
-	Handle              string    `json:"handle"`
-	ProfileURL          string    `json:"profile_url"`
-	RecentItemCount     int       `json:"recent_item_count"`
-	AllItemCount        int       `json:"all_item_count"`
-	RecentFileSizeBytes int64     `json:"recent_file_size_bytes"`
-	AllFileSizeBytes    int64     `json:"all_file_size_bytes"`
-	LastUpdated         time.Time `json:"last_updated"`
-	RecentFeedURL       string    `json:"recent_feed_url"`
-	AllFeedURL          string    `json:"all_feed_url"`
+	Platform      string    `json:"platform"`
+	Handle        string    `json:"handle"`
+	ProfileURL    string    `json:"profile_url"`
+	ItemCount     int       `json:"item_count"`
+	FileSizeBytes int64     `json:"file_size_bytes"`
+	LastUpdated   time.Time `json:"last_updated"`
+	FeedURL       string    `json:"feed_url"`
 }

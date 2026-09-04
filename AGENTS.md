@@ -27,8 +27,6 @@ This document captures architectural conventions, platform quirks, and engineeri
 ## 4. Feed Generation & Formatting
 - **Clickable Media:**
   - RSS/Atom content HTML must embed thumbnail images inside clickable hyperlinks (`<a href="..."><img src="..." /></a>`) pointing to the original post. Avoid cluttering content with redundant trailing text links.
-- **Dual Feed Architecture:**
-  - Every profile produces two feeds:
-    - `<handle>-feed.xml`: Capped recent feed (default 15–50 items) for everyday RSS reader consumption.
-    - `<handle>-all-feed.xml`: Full cumulative archive.
-  - Feeds act as their own state store: the sync engine parses existing feeds on disk to calculate deltas and prepend new items idempotently without requiring an external database.
+- **Single Feed Architecture (Capped at 25 Items):**
+  - Every profile produces one feed: `<handle>-feed.xml` capped at the latest 25 items for fast, clean RSS reader consumption without bloat.
+  - Feeds act as their own state store: the sync engine parses existing feeds on disk to calculate deltas, merge new items, and keep the latest 25 items idempotently without requiring an external database.

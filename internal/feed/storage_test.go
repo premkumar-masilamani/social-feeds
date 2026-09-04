@@ -44,14 +44,9 @@ func TestSavePostsAndIdempotentDelta(t *testing.T) {
 		t.Fatalf("unexpected error on initial save: %v", err)
 	}
 
-	recentPath := storage.GetRecentFeedPath("instagram", "testuser")
-	allPath := storage.GetAllFeedPath("instagram", "testuser")
-
-	if _, err := os.Stat(recentPath); err != nil {
-		t.Fatalf("expected recent feed at %q, but missing: %v", recentPath, err)
-	}
-	if _, err := os.Stat(allPath); err != nil {
-		t.Fatalf("expected all feed at %q, but missing: %v", allPath, err)
+	feedPath := storage.GetFeedPath("instagram", "testuser")
+	if _, err := os.Stat(feedPath); err != nil {
+		t.Fatalf("expected feed at %q, but missing: %v", feedPath, err)
 	}
 
 	// Verify latest post ID
@@ -82,28 +77,28 @@ func TestSavePostsAndIdempotentDelta(t *testing.T) {
 		t.Fatalf("unexpected error on delta save: %v", err)
 	}
 
-	// Read and verify archive feed has exactly 3 unique posts (p3, p2, p1)
-	allData, err := os.ReadFile(allPath)
+	// Read and verify feed has exactly 3 unique posts (p3, p2, p1)
+	data, err := os.ReadFile(feedPath)
 	if err != nil {
-		t.Fatalf("failed reading all feed: %v", err)
+		t.Fatalf("failed reading feed: %v", err)
 	}
 
-	feed, err := ParseAtomFeed(allData)
+	atomFeed, err := ParseAtomFeed(data)
 	if err != nil {
-		t.Fatalf("failed parsing all feed XML: %v", err)
+		t.Fatalf("failed parsing feed XML: %v", err)
 	}
 
-	if len(feed.Entries) != 3 {
-		t.Fatalf("expected 3 entries in merged feed, got %d", len(feed.Entries))
+	if len(atomFeed.Entries) != 3 {
+		t.Fatalf("expected 3 entries in merged feed, got %d", len(atomFeed.Entries))
 	}
 
 	// Verify newest post is at the top
-	if feed.Entries[0].ID != "https://www.instagram.com/p/p3/" {
-		t.Errorf("expected newest entry to be p3, got %s", feed.Entries[0].ID)
+	if atomFeed.Entries[0].ID != "https://www.instagram.com/p/p3/" {
+		t.Errorf("expected newest entry to be p3, got %s", atomFeed.Entries[0].ID)
 	}
 }
 
-func TestCapRecentFeedAtLimit(t *testing.T) {
+func TestCapFeedAtLimit(t *testing.T) {
 	tempDir := t.TempDir()
 	storage := NewStorage(tempDir)
 
@@ -130,25 +125,18 @@ func TestCapRecentFeedAtLimit(t *testing.T) {
 		t.Fatalf("failed saving 65 posts: %v", err)
 	}
 
-	recentPath := storage.GetRecentFeedPath("instagram", "activeuser")
-	allPath := storage.GetAllFeedPath("instagram", "activeuser")
+	feedPath := storage.GetFeedPath("instagram", "activeuser")
 
-	recentData, _ := os.ReadFile(recentPath)
-	recentFeed, err := ParseAtomFeed(recentData)
+	feedData, err := os.ReadFile(feedPath)
 	if err != nil {
-		t.Fatalf("failed parsing recent feed: %v", err)
+		t.Fatalf("failed reading feed: %v", err)
 	}
-	if len(recentFeed.Entries) != RecentFeedLimit {
-		t.Errorf("expected exactly %d entries in recent feed, got %d", RecentFeedLimit, len(recentFeed.Entries))
-	}
-
-	allData, _ := os.ReadFile(allPath)
-	allFeed, err := ParseAtomFeed(allData)
+	atomFeed, err := ParseAtomFeed(feedData)
 	if err != nil {
-		t.Fatalf("failed parsing all feed: %v", err)
+		t.Fatalf("failed parsing feed: %v", err)
 	}
-	if len(allFeed.Entries) != 65 {
-		t.Errorf("expected 65 entries in all feed, got %d", len(allFeed.Entries))
+	if len(atomFeed.Entries) != FeedLimit {
+		t.Errorf("expected exactly %d entries in feed, got %d", FeedLimit, len(atomFeed.Entries))
 	}
 
 	// Test GetFeedStats
@@ -160,11 +148,15 @@ func TestCapRecentFeedAtLimit(t *testing.T) {
 		t.Fatalf("expected 1 stat entry, got %d", len(stats))
 	}
 	s := stats[0]
-	if s.RecentItemCount != RecentFeedLimit || s.AllItemCount != 65 {
-		t.Errorf("expected (recent=%d, all=65), got (recent=%d, all=%d)", RecentFeedLimit, s.RecentItemCount, s.AllItemCount)
+	if s.ItemCount != FeedLimit {
+		t.Errorf("expected item count %d, got %d", FeedLimit, s.ItemCount)
 	}
-	if s.RecentFileSizeBytes <= 0 || s.AllFileSizeBytes <= 0 {
-		t.Errorf("expected positive file sizes, got recent=%d, all=%d", s.RecentFileSizeBytes, s.AllFileSizeBytes)
+	if s.FileSizeBytes <= 0 {
+		t.Errorf("expected positive file size, got %d", s.FileSizeBytes)
+	}
+	expectedFeedURL := fmt.Sprintf("%s/feeds/instagram/activeuser-feed.xml", baseURL)
+	if s.FeedURL != expectedFeedURL {
+		t.Errorf("expected FeedURL %q, got %q", expectedFeedURL, s.FeedURL)
 	}
 }
 
@@ -172,13 +164,9 @@ func TestDirectoryIsolation(t *testing.T) {
 	tempDir := t.TempDir()
 	storage := NewStorage(tempDir)
 
-	expectedRecent := filepath.Join(tempDir, "instagram", "handle-feed.xml")
-	expectedAll := filepath.Join(tempDir, "instagram", "handle-all-feed.xml")
+	expectedFeed := filepath.Join(tempDir, "instagram", "handle-feed.xml")
 
-	if storage.GetRecentFeedPath("instagram", "handle") != expectedRecent {
-		t.Errorf("unexpected recent path")
-	}
-	if storage.GetAllFeedPath("instagram", "handle") != expectedAll {
-		t.Errorf("unexpected all path")
+	if storage.GetFeedPath("instagram", "handle") != expectedFeed {
+		t.Errorf("unexpected feed path: got %s, want %s", storage.GetFeedPath("instagram", "handle"), expectedFeed)
 	}
 }

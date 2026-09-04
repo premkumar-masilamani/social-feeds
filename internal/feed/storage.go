@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	RecentFeedLimit = 15
-	RecentSuffix    = "-feed.xml"
-	AllSuffix       = "-all-feed.xml"
+	FeedLimit  = 25
+	FeedSuffix = "-feed.xml"
+
+	// Backward compatibility aliases
+	RecentFeedLimit = FeedLimit
+	RecentSuffix    = FeedSuffix
 )
 
 // Storage manages local Atom feed XML files on disk.
@@ -36,33 +39,33 @@ func (s *Storage) BaseDir() string {
 	return s.baseDir
 }
 
-// GetRecentFeedPath returns the file path for the recent-items feed (capped at RecentFeedLimit).
+// GetFeedPath returns the file path for the handle's feed XML (capped at FeedLimit).
+func (s *Storage) GetFeedPath(platform, handle string) string {
+	return filepath.Join(s.baseDir, platform, handle+FeedSuffix)
+}
+
+// GetRecentFeedPath is an alias for GetFeedPath for backward compatibility.
 func (s *Storage) GetRecentFeedPath(platform, handle string) string {
-	return filepath.Join(s.baseDir, platform, handle+RecentSuffix)
+	return s.GetFeedPath(platform, handle)
 }
 
-// GetAllFeedPath returns the file path for the full-archive feed.
-func (s *Storage) GetAllFeedPath(platform, handle string) string {
-	return filepath.Join(s.baseDir, platform, handle+AllSuffix)
-}
-
-// ReadExistingPosts loads all posts currently preserved in the full-archive feed.
+// ReadExistingPosts loads all posts currently preserved in the handle's feed.
 func (s *Storage) ReadExistingPosts(platform, handle string) ([]model.Post, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	archivePath := s.GetAllFeedPath(platform, handle)
-	data, err := os.ReadFile(archivePath)
+	feedPath := s.GetFeedPath(platform, handle)
+	data, err := os.ReadFile(feedPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("reading archive feed %q: %w", archivePath, err)
+		return nil, fmt.Errorf("reading feed %q: %w", feedPath, err)
 	}
 
 	atomFeed, err := ParseAtomFeed(data)
 	if err != nil {
-		return nil, fmt.Errorf("parsing existing feed XML %q: %w", archivePath, err)
+		return nil, fmt.Errorf("parsing existing feed XML %q: %w", feedPath, err)
 	}
 
 	posts := make([]model.Post, 0, len(atomFeed.Entries))
@@ -84,7 +87,7 @@ func (s *Storage) ReadExistingPosts(platform, handle string) ([]model.Post, erro
 	return posts, nil
 }
 
-// GetLatestPostID returns the ID of the most recent post stored in the archive feed.
+// GetLatestPostID returns the ID of the most recent post stored in the feed.
 func (s *Storage) GetLatestPostID(platform, handle string) string {
 	posts, err := s.ReadExistingPosts(platform, handle)
 	if err != nil || len(posts) == 0 {
@@ -93,7 +96,7 @@ func (s *Storage) GetLatestPostID(platform, handle string) string {
 	return posts[0].ID
 }
 
-// SavePosts idempotently merges newly fetched posts with existing posts and writes both feeds.
+// SavePosts idempotently merges newly fetched posts with existing posts and writes the feed capped at FeedLimit.
 func (s *Storage) SavePosts(baseURL string, profile *model.Profile, newPosts []model.Post) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -103,9 +106,9 @@ func (s *Storage) SavePosts(baseURL string, profile *model.Profile, newPosts []m
 		return fmt.Errorf("creating platform directory %q: %w", platformDir, err)
 	}
 
-	archivePath := s.GetAllFeedPath(profile.Platform, profile.Handle)
+	feedPath := s.GetFeedPath(profile.Platform, profile.Handle)
 	existingPosts := make([]model.Post, 0)
-	if data, err := os.ReadFile(archivePath); err == nil {
+	if data, err := os.ReadFile(feedPath); err == nil {
 		if atomFeed, err := ParseAtomFeed(data); err == nil {
 			for _, entry := range atomFeed.Entries {
 				pubTime, _ := time.Parse(time.RFC3339, entry.Published)
@@ -157,32 +160,20 @@ func (s *Storage) SavePosts(baseURL string, profile *model.Profile, newPosts []m
 		return merged[i].PublishedAt.After(merged[j].PublishedAt)
 	})
 
+	// Cap at FeedLimit (25 posts)
+	if len(merged) > FeedLimit {
+		merged = merged[:FeedLimit]
+	}
+
 	baseURL = strings.TrimRight(baseURL, "/")
 
-	// 1. Generate and save full-archive feed
-	allFeedSelfURL := fmt.Sprintf("%s/feeds/%s/%s%s", baseURL, profile.Platform, profile.Handle, AllSuffix)
-	allFeedXML, err := GenerateAtomXML(profile, merged, allFeedSelfURL)
+	feedSelfURL := fmt.Sprintf("%s/feeds/%s/%s%s", baseURL, profile.Platform, profile.Handle, FeedSuffix)
+	feedXML, err := GenerateAtomXML(profile, merged, feedSelfURL)
 	if err != nil {
-		return fmt.Errorf("generating archive atom XML: %w", err)
+		return fmt.Errorf("generating atom XML: %w", err)
 	}
-	if err := os.WriteFile(archivePath, allFeedXML, 0644); err != nil {
-		return fmt.Errorf("writing archive feed to %q: %w", archivePath, err)
-	}
-
-	// 2. Generate and save capped recent feed (latest RecentFeedLimit items)
-	recentPosts := merged
-	if len(recentPosts) > RecentFeedLimit {
-		recentPosts = recentPosts[:RecentFeedLimit]
-	}
-
-	recentFeedSelfURL := fmt.Sprintf("%s/feeds/%s/%s%s", baseURL, profile.Platform, profile.Handle, RecentSuffix)
-	recentFeedXML, err := GenerateAtomXML(profile, recentPosts, recentFeedSelfURL)
-	if err != nil {
-		return fmt.Errorf("generating recent atom XML: %w", err)
-	}
-	recentPath := s.GetRecentFeedPath(profile.Platform, profile.Handle)
-	if err := os.WriteFile(recentPath, recentFeedXML, 0644); err != nil {
-		return fmt.Errorf("writing recent feed to %q: %w", recentPath, err)
+	if err := os.WriteFile(feedPath, feedXML, 0644); err != nil {
+		return fmt.Errorf("writing feed to %q: %w", feedPath, err)
 	}
 
 	return nil
@@ -219,43 +210,25 @@ func (s *Storage) GetFeedStats(baseURL string) ([]model.FeedStats, error) {
 		handles := make(map[string]bool)
 		for _, f := range fileEntries {
 			name := f.Name()
-			if strings.HasSuffix(name, AllSuffix) {
-				handle := strings.TrimSuffix(name, AllSuffix)
-				handles[handle] = true
-			} else if strings.HasSuffix(name, RecentSuffix) {
-				handle := strings.TrimSuffix(name, RecentSuffix)
+			if strings.HasSuffix(name, FeedSuffix) {
+				handle := strings.TrimSuffix(name, FeedSuffix)
 				handles[handle] = true
 			}
 		}
 
 		for handle := range handles {
-			recentPath := s.GetRecentFeedPath(platform, handle)
-			allPath := s.GetAllFeedPath(platform, handle)
+			feedPath := s.GetFeedPath(platform, handle)
 
-			var recentSize, allSize int64
-			var recentCount, allCount int
+			var fileSize int64
+			var itemCount int
 			var lastUpdated time.Time
 
-			if fi, err := os.Stat(recentPath); err == nil {
-				recentSize = fi.Size()
-				if fi.ModTime().After(lastUpdated) {
-					lastUpdated = fi.ModTime()
-				}
-				if data, err := os.ReadFile(recentPath); err == nil {
+			if fi, err := os.Stat(feedPath); err == nil {
+				fileSize = fi.Size()
+				lastUpdated = fi.ModTime()
+				if data, err := os.ReadFile(feedPath); err == nil {
 					if feed, err := ParseAtomFeed(data); err == nil {
-						recentCount = len(feed.Entries)
-					}
-				}
-			}
-
-			if fi, err := os.Stat(allPath); err == nil {
-				allSize = fi.Size()
-				if fi.ModTime().After(lastUpdated) {
-					lastUpdated = fi.ModTime()
-				}
-				if data, err := os.ReadFile(allPath); err == nil {
-					if feed, err := ParseAtomFeed(data); err == nil {
-						allCount = len(feed.Entries)
+						itemCount = len(feed.Entries)
 					}
 				}
 			}
@@ -268,16 +241,13 @@ func (s *Storage) GetFeedStats(baseURL string) ([]model.FeedStats, error) {
 			}
 
 			statsList = append(statsList, model.FeedStats{
-				Platform:            platform,
-				Handle:              handle,
-				ProfileURL:          profileURL,
-				RecentItemCount:     recentCount,
-				AllItemCount:        allCount,
-				RecentFileSizeBytes: recentSize,
-				AllFileSizeBytes:    allSize,
-				LastUpdated:         lastUpdated,
-				RecentFeedURL:       fmt.Sprintf("%s/feeds/%s/%s%s", baseURL, platform, handle, RecentSuffix),
-				AllFeedURL:          fmt.Sprintf("%s/feeds/%s/%s%s", baseURL, platform, handle, AllSuffix),
+				Platform:      platform,
+				Handle:        handle,
+				ProfileURL:    profileURL,
+				ItemCount:     itemCount,
+				FileSizeBytes: fileSize,
+				LastUpdated:   lastUpdated,
+				FeedURL:       fmt.Sprintf("%s/feeds/%s/%s%s", baseURL, platform, handle, FeedSuffix),
 			})
 		}
 	}

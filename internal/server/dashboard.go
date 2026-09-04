@@ -277,8 +277,7 @@ const indexTemplate = `<!DOCTYPE html>
       font-weight: 600;
       color: #fff;
     }
-    .badge-recent { background: var(--badge-recent); }
-    .badge-all { background: var(--badge-all); }
+    .badge-feed { background: var(--badge-recent); }
     .feed-stats { font-size: 0.8rem; color: var(--text-muted); }
     .feed-url-row { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.2rem; }
     .feed-url {
@@ -375,27 +374,15 @@ const indexTemplate = `<!DOCTYPE html>
             </div>
 
             <div class="feed-links">
-              <!-- Recent Feed (Capped at RecentFeedLimit) -->
+              <!-- Single Feed (Capped at FeedLimit) -->
               <div class="feed-box">
                 <div class="feed-box-header">
-                  <span class="badge badge-recent">Recent Feed (15 Posts)</span>
-                  <span class="feed-stats">{{.RecentItemCount}} items &bull; {{.RecentFileSizeBytes}} B</span>
+                  <span class="badge badge-feed">Atom 1.0 Feed (25 Posts)</span>
+                  <span class="feed-stats">{{.ItemCount}} items &bull; {{.FileSizeBytes}} B</span>
                 </div>
                 <div class="feed-url-row">
-                  <a href="{{.RecentFeedURL}}" class="feed-url" target="_blank">{{.Handle}}-feed.xml</a>
-                  <button class="copy-btn" onclick="copyToClipboard('{{.RecentFeedURL}}', this)">Copy URL</button>
-                </div>
-              </div>
-
-              <!-- Full Archive Feed -->
-              <div class="feed-box">
-                <div class="feed-box-header">
-                  <span class="badge badge-all">Full Archive</span>
-                  <span class="feed-stats">{{.AllItemCount}} items &bull; {{.AllFileSizeBytes}} B</span>
-                </div>
-                <div class="feed-url-row">
-                  <a href="{{.AllFeedURL}}" class="feed-url" target="_blank">{{.Handle}}-all-feed.xml</a>
-                  <button class="copy-btn" onclick="copyToClipboard('{{.AllFeedURL}}', this)">Copy URL</button>
+                  <a href="{{.FeedURL}}" class="feed-url" target="_blank">{{.Handle}}-feed.xml</a>
+                  <button class="copy-btn" onclick="copyToClipboard('{{.FeedURL}}', this)">Copy URL</button>
                 </div>
               </div>
             </div>

@@ -46,7 +46,7 @@ func (h *Handler) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	totalItems := 0
 	for _, s := range stats {
 		grouped[s.Platform] = append(grouped[s.Platform], s)
-		totalItems += s.AllItemCount
+		totalItems += s.ItemCount
 	}
 
 	isSyncing, lastSync, lastErr := h.engine.Status()
