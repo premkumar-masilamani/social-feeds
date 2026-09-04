@@ -28,5 +28,5 @@ This document captures architectural conventions, platform quirks, and engineeri
 - **Clickable Media:**
   - RSS/Atom content HTML must embed thumbnail images inside clickable hyperlinks (`<a href="..."><img src="..." /></a>`) pointing to the original post. Avoid cluttering content with redundant trailing text links.
 - **Single Feed Architecture (Capped at 25 Items):**
-  - Every profile produces one feed: `<handle>-feed.xml` capped at the latest 25 items for fast, clean RSS reader consumption without bloat.
+  - Every profile produces one feed: `<handle>.xml` capped at the latest 25 items for fast, clean RSS reader consumption without bloat.
   - Feeds act as their own state store: the sync engine parses existing feeds on disk to calculate deltas, merge new items, and keep the latest 25 items idempotently without requiring an external database.

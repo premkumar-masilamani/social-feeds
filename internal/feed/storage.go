@@ -14,7 +14,7 @@ import (
 
 const (
 	FeedLimit  = 25
-	FeedSuffix = "-feed.xml"
+	FeedSuffix = ".xml"
 
 	// Backward compatibility aliases
 	RecentFeedLimit = FeedLimit
@@ -58,9 +58,16 @@ func (s *Storage) ReadExistingPosts(platform, handle string) ([]model.Post, erro
 	data, err := os.ReadFile(feedPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			// Fallback: check legacy -feed.xml if not yet renamed
+			legacyPath := filepath.Join(s.baseDir, platform, handle+"-feed.xml")
+			if legacyData, lErr := os.ReadFile(legacyPath); lErr == nil {
+				data = legacyData
+			} else {
+				return nil, nil
+			}
+		} else {
+			return nil, fmt.Errorf("reading feed %q: %w", feedPath, err)
 		}
-		return nil, fmt.Errorf("reading feed %q: %w", feedPath, err)
 	}
 
 	atomFeed, err := ParseAtomFeed(data)
@@ -108,7 +115,14 @@ func (s *Storage) SavePosts(baseURL string, profile *model.Profile, newPosts []m
 
 	feedPath := s.GetFeedPath(profile.Platform, profile.Handle)
 	existingPosts := make([]model.Post, 0)
-	if data, err := os.ReadFile(feedPath); err == nil {
+	readPath := feedPath
+	if _, err := os.Stat(readPath); os.IsNotExist(err) {
+		legacyPath := filepath.Join(s.baseDir, profile.Platform, profile.Handle+"-feed.xml")
+		if _, err := os.Stat(legacyPath); err == nil {
+			readPath = legacyPath
+		}
+	}
+	if data, err := os.ReadFile(readPath); err == nil {
 		if atomFeed, err := ParseAtomFeed(data); err == nil {
 			for _, entry := range atomFeed.Entries {
 				pubTime, _ := time.Parse(time.RFC3339, entry.Published)
@@ -176,6 +190,14 @@ func (s *Storage) SavePosts(baseURL string, profile *model.Profile, newPosts []m
 		return fmt.Errorf("writing feed to %q: %w", feedPath, err)
 	}
 
+	// Clean up legacy -feed.xml and -all-feed.xml if they existed
+	legacyFeedPath := filepath.Join(s.baseDir, profile.Platform, profile.Handle+"-feed.xml")
+	if legacyFeedPath != feedPath {
+		_ = os.Remove(legacyFeedPath)
+	}
+	legacyAllPath := filepath.Join(s.baseDir, profile.Platform, profile.Handle+"-all-feed.xml")
+	_ = os.Remove(legacyAllPath)
+
 	return nil
 }
 
@@ -212,6 +234,8 @@ func (s *Storage) GetFeedStats(baseURL string) ([]model.FeedStats, error) {
 			name := f.Name()
 			if strings.HasSuffix(name, FeedSuffix) {
 				handle := strings.TrimSuffix(name, FeedSuffix)
+				handle = strings.TrimSuffix(handle, "-feed")
+				handle = strings.TrimSuffix(handle, "-all-feed")
 				handles[handle] = true
 			}
 		}

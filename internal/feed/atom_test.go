@@ -38,7 +38,7 @@ func TestGenerateAtomXML(t *testing.T) {
 		},
 	}
 
-	xmlData, err := GenerateAtomXML(profile, posts, "http://localhost:9527/feeds/instagram/natgeo-feed.xml")
+	xmlData, err := GenerateAtomXML(profile, posts, "http://localhost:9527/feeds/instagram/natgeo.xml")
 	if err != nil {
 		t.Fatalf("unexpected error generating Atom XML: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestGenerateAtomXML(t *testing.T) {
 	if strings.Contains(xmlStr, "INSTAGRAM") {
 		t.Errorf("feed title should not contain platform suffix INSTAGRAM: %s", xmlStr)
 	}
-	if !strings.Contains(xmlStr, `<link href="http://localhost:9527/feeds/instagram/natgeo-feed.xml" rel="self" type="application/atom+xml"></link>`) {
+	if !strings.Contains(xmlStr, `<link href="http://localhost:9527/feeds/instagram/natgeo.xml" rel="self" type="application/atom+xml"></link>`) {
 		t.Errorf("self link not found in XML")
 	}
 

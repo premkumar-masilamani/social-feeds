@@ -154,7 +154,7 @@ func TestCapFeedAtLimit(t *testing.T) {
 	if s.FileSizeBytes <= 0 {
 		t.Errorf("expected positive file size, got %d", s.FileSizeBytes)
 	}
-	expectedFeedURL := fmt.Sprintf("%s/feeds/instagram/activeuser-feed.xml", baseURL)
+	expectedFeedURL := fmt.Sprintf("%s/feeds/instagram/activeuser.xml", baseURL)
 	if s.FeedURL != expectedFeedURL {
 		t.Errorf("expected FeedURL %q, got %q", expectedFeedURL, s.FeedURL)
 	}
@@ -164,7 +164,7 @@ func TestDirectoryIsolation(t *testing.T) {
 	tempDir := t.TempDir()
 	storage := NewStorage(tempDir)
 
-	expectedFeed := filepath.Join(tempDir, "instagram", "handle-feed.xml")
+	expectedFeed := filepath.Join(tempDir, "instagram", "handle.xml")
 
 	if storage.GetFeedPath("instagram", "handle") != expectedFeed {
 		t.Errorf("unexpected feed path: got %s, want %s", storage.GetFeedPath("instagram", "handle"), expectedFeed)

@@ -381,7 +381,7 @@ const indexTemplate = `<!DOCTYPE html>
                   <span class="feed-stats">{{.ItemCount}} items &bull; {{.FileSizeBytes}} B</span>
                 </div>
                 <div class="feed-url-row">
-                  <a href="{{.FeedURL}}" class="feed-url" target="_blank">{{.Handle}}-feed.xml</a>
+                  <a href="{{.FeedURL}}" class="feed-url" target="_blank">{{.Handle}}.xml</a>
                   <button class="copy-btn" onclick="copyToClipboard('{{.FeedURL}}', this)">Copy URL</button>
                 </div>
               </div>

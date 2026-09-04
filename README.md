@@ -9,7 +9,7 @@ It runs quietly in the background on your machine, maintains a clean Atom feed p
 ## Features
 
 - ⚡ **Zero Binary Media Downloads:** Only downloads metadata (captions, timestamps, URLs, author) and embeds remote CDN thumbnail images (`<img src="...">`) directly inside feed items so your RSS reader displays pictures without bloating your hard drive.
-- 🔄 **Clean Atom Feed Per Profile (Limited to 25 Posts):** Generates `<handle>-feed.xml` containing the latest 25 posts per profile, ideal for fast RSS reader consumption without unnecessary bloat.
+- 🔄 **Clean Atom Feed Per Profile (Limited to 25 Posts):** Generates `<handle>.xml` containing the latest 25 posts per profile, ideal for fast RSS reader consumption without unnecessary bloat.
 - 🛡️ **Headless Chrome Automation:** Uses automated headless Chrome via Chrome DevTools Protocol (`chromedp`) with persistent browser profiles (`.browser_profile`) to seamlessly use your existing logged-in session, navigate profiles, and trigger infinite scrolling.
 - 🔁 **Idempotent Delta Syncing:** Uses the XML feeds on disk as the state store to detect known posts, merge new content, and prevent duplicates.
 - 🖥️ **Web Dashboard & "Sync Now":** Embedded web dashboard on `http://localhost:9527` displaying profiles, feed URLs, item counts, file sizes, and an on-demand "Sync Now" button.
@@ -63,7 +63,7 @@ Navigate to:
 http://localhost:9527
 ```
 Subscribe to any feed link in your favorite RSS reader (e.g. NetNewsWire, Reeder, Feedly, FreshRSS):
-- `http://localhost:9527/feeds/instagram/natgeo-feed.xml`
+- `http://localhost:9527/feeds/instagram/natgeo.xml`
 
 ---
 

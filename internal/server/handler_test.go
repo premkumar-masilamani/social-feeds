@@ -50,7 +50,7 @@ func TestHandleIndex(t *testing.T) {
 	if !contains(body, "@testaccount") {
 		t.Errorf("expected profile handle in dashboard HTML")
 	}
-	if !contains(body, "testaccount-feed.xml") {
+	if !contains(body, "testaccount.xml") {
 		t.Errorf("expected feed links in dashboard HTML")
 	}
 }
@@ -70,7 +70,7 @@ func TestHandleFeed(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /feeds/{platform}/{filename}", h.HandleFeed)
 
-	req := httptest.NewRequest(http.MethodGet, "/feeds/instagram/photographer-feed.xml", nil)
+	req := httptest.NewRequest(http.MethodGet, "/feeds/instagram/photographer.xml", nil)
 	rr := httptest.NewRecorder()
 
 	mux.ServeHTTP(rr, req)
