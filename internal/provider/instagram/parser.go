@@ -3,7 +3,6 @@ package instagram
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 
@@ -15,45 +14,30 @@ var (
 	validUsernameRegex = regexp.MustCompile(`^[a-zA-Z0-9._]{1,30}$`)
 )
 
-// ParseTarget parses a line from instagram.txt into a normalized Profile.
-// Supported formats:
-// - https://www.instagram.com/natgeo/
-// - http://instagram.com/natgeo
-// - @natgeo
-// - natgeo
+// ParseTarget parses a line from the handle file into a normalized Profile.
+// Only pure handle names are supported (e.g. "username" or "@username").
+// Full URLs are rejected with an informative error instructing the user to supply only the handle name.
 func ParseTarget(line string) (*model.Profile, error) {
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 		return nil, errors.New("empty or comment line")
 	}
 
-	var username string
-
-	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
-		u, err := url.Parse(trimmed)
-		if err != nil {
-			return nil, fmt.Errorf("invalid URL %q: %w", trimmed, err)
-		}
-		path := strings.Trim(u.Path, "/")
-		parts := strings.Split(path, "/")
-		if len(parts) == 0 || parts[0] == "" {
-			return nil, fmt.Errorf("could not extract username from URL %q", trimmed)
-		}
-		// Skip reserved keywords
-		switch strings.ToLower(parts[0]) {
-		case "explore", "reels", "stories", "direct", "accounts", "p", "tv":
-			return nil, fmt.Errorf("URL %q is not a profile URL", trimmed)
-		default:
-			username = parts[0]
-		}
-	} else {
-		username = strings.TrimPrefix(trimmed, "@")
-		username = strings.Trim(username, "/")
+	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") || strings.Contains(trimmed, "/") || strings.Contains(trimmed, ":") {
+		return nil, fmt.Errorf("invalid handle %q: only handle names (e.g. 'username' or '@username') are supported; please extract the handle name from the URL", trimmed)
 	}
 
+	username := strings.TrimPrefix(trimmed, "@")
 	username = strings.TrimSpace(username)
+
 	if !validUsernameRegex.MatchString(username) {
-		return nil, fmt.Errorf("invalid Instagram username %q", username)
+		return nil, fmt.Errorf("invalid Instagram handle %q: must contain 1-30 letters, numbers, periods, or underscores", username)
+	}
+
+	// Skip reserved keywords
+	switch strings.ToLower(username) {
+	case "explore", "reels", "stories", "direct", "accounts", "p", "tv":
+		return nil, fmt.Errorf("reserved keyword %q is not a valid handle", username)
 	}
 
 	return &model.Profile{

@@ -122,3 +122,46 @@ func TestSyncEngine(t *testing.T) {
 	_ = eng.TriggerSync(context.Background()) // Should either start after or skip safely
 	wg.Wait()
 }
+
+func TestSyncEngine_LocalHandlesAndDeduplication(t *testing.T) {
+	tempDir := t.TempDir()
+	storage := feed.NewStorage(tempDir)
+	baseURL := "http://localhost:9527"
+
+	mock := &mockProvider{
+		postsToRet: []model.Post{
+			{
+				ID:          "mock-1",
+				URL:         "https://mockplatform.com/p/1",
+				Caption:     "Mock Post 1",
+				PublishedAt: time.Now(),
+				Author:      "tester",
+			},
+		},
+	}
+	provider.Register(mock)
+
+	// Create public file and local/private file
+	pubFile := filepath.Join(tempDir, "mockplatform.txt")
+	localFile := filepath.Join(tempDir, "mockplatform.local.txt")
+	// "tester" is present in both (to test deduplication), "private_user" is only in local
+	_ = os.WriteFile(pubFile, []byte("tester\n"), 0644)
+	_ = os.WriteFile(localFile, []byte("tester\nprivate_user\n"), 0644)
+
+	eng := NewSyncEngine(tempDir, baseURL, storage)
+	if err := eng.SyncAll(context.Background()); err != nil {
+		t.Fatalf("SyncAll failed: %v", err)
+	}
+
+	// Should fetch tester once, and private_user once -> total 2 calls
+	if mock.fetchCalls != 2 {
+		t.Errorf("expected 2 fetch calls (tester deduplicated + private_user), got %d", mock.fetchCalls)
+	}
+
+	if _, err := os.Stat(storage.GetRecentFeedPath("mockplatform", "tester")); err != nil {
+		t.Errorf("feed for tester missing: %v", err)
+	}
+	if _, err := os.Stat(storage.GetRecentFeedPath("mockplatform", "private_user")); err != nil {
+		t.Errorf("feed for private_user missing: %v", err)
+	}
+}

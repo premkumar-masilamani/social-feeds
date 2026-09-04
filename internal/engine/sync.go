@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/premkumar-masilamani/social-media-rss-feed/internal/feed"
+	"github.com/premkumar-masilamani/social-media-rss-feed/internal/model"
 	"github.com/premkumar-masilamani/social-media-rss-feed/internal/provider"
 )
 
@@ -110,44 +111,63 @@ func (e *SyncEngine) SyncAll(ctx context.Context) error {
 func (e *SyncEngine) runSync(ctx context.Context) error {
 	activeProviders := provider.DiscoverActiveProviders(e.baseDir)
 	if len(activeProviders) == 0 {
-		log.Printf("[SyncEngine] No active platform files found in %q (e.g. instagram.txt)", e.baseDir)
+		log.Printf("[SyncEngine] No active platform handle files found in %q (e.g. %s/instagram.txt)", e.baseDir, e.baseDir)
 		return nil
 	}
 
 	var aggregatedErrors []string
 
 	for _, p := range activeProviders {
-		sourcePath := filepath.Join(e.baseDir, p.SourceFile())
-		log.Printf("[SyncEngine] Processing platform %s from %s", p.Name(), p.SourceFile())
+		sourceFiles := provider.GetPlatformSourceFiles(e.baseDir, p.Name())
+		log.Printf("[SyncEngine] Processing platform %s from %s", p.Name(), strings.Join(sourceFiles, ", "))
 
-		file, err := os.Open(sourcePath)
-		if err != nil {
-			msg := fmt.Sprintf("opening %s: %v", sourcePath, err)
-			log.Printf("[SyncEngine] Warning: %s", msg)
-			aggregatedErrors = append(aggregatedErrors, msg)
-			continue
+		var targets []*model.Profile
+		seenHandles := make(map[string]bool)
+
+		for _, sourcePath := range sourceFiles {
+			file, err := os.Open(sourcePath)
+			if err != nil {
+				msg := fmt.Sprintf("opening %s: %v", sourcePath, err)
+				log.Printf("[SyncEngine] Warning: %s", msg)
+				aggregatedErrors = append(aggregatedErrors, msg)
+				continue
+			}
+
+			scanner := bufio.NewScanner(file)
+			lineNum := 0
+			for scanner.Scan() {
+				lineNum++
+				line := strings.TrimSpace(scanner.Text())
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
+				}
+
+				targetProfile, err := p.ParseTarget(line)
+				if err != nil {
+					log.Printf("[SyncEngine] [%s:%d] Skipping invalid line %q: %v", filepath.Base(sourcePath), lineNum, line, err)
+					continue
+				}
+
+				normalizedKey := strings.ToLower(targetProfile.Handle)
+				if !seenHandles[normalizedKey] {
+					seenHandles[normalizedKey] = true
+					targets = append(targets, targetProfile)
+				}
+			}
+			file.Close()
+
+			if err := scanner.Err(); err != nil {
+				msg := fmt.Sprintf("scanning %s: %v", sourcePath, err)
+				log.Printf("[SyncEngine] Warning: %s", msg)
+				aggregatedErrors = append(aggregatedErrors, msg)
+			}
 		}
 
-		scanner := bufio.NewScanner(file)
-		lineNum := 0
-		for scanner.Scan() {
+		for _, targetProfile := range targets {
 			select {
 			case <-ctx.Done():
-				file.Close()
 				return ctx.Err()
 			default:
-			}
-
-			lineNum++
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-
-			targetProfile, err := p.ParseTarget(line)
-			if err != nil {
-				log.Printf("[SyncEngine] [%s:%d] Skipping invalid line %q: %v", p.SourceFile(), lineNum, line, err)
-				continue
 			}
 
 			sinceID := e.storage.GetLatestPostID(p.Name(), targetProfile.Handle)
@@ -169,13 +189,6 @@ func (e *SyncEngine) runSync(ctx context.Context) error {
 				aggregatedErrors = append(aggregatedErrors, msg)
 				continue
 			}
-		}
-		file.Close()
-
-		if err := scanner.Err(); err != nil {
-			msg := fmt.Sprintf("scanning %s: %v", sourcePath, err)
-			log.Printf("[SyncEngine] Warning: %s", msg)
-			aggregatedErrors = append(aggregatedErrors, msg)
 		}
 	}
 

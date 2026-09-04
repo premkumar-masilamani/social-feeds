@@ -9,6 +9,7 @@ import (
 func TestLoadDefaults(t *testing.T) {
 	os.Unsetenv("PORT")
 	os.Unsetenv("FEEDS_DIR")
+	os.Unsetenv("HANDLES_DIR")
 	os.Unsetenv("BASE_URL")
 
 	cfg := LoadFromArgs(nil, 9527, 1*time.Hour)
@@ -21,6 +22,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.FeedsDir != "./feeds" {
 		t.Errorf("expected default feeds dir ./feeds, got %q", cfg.FeedsDir)
 	}
+	if cfg.HandlesDir != "./handles" {
+		t.Errorf("expected default handles dir ./handles, got %q", cfg.HandlesDir)
+	}
 	if cfg.BaseURL != "http://localhost:9527" {
 		t.Errorf("expected default base url http://localhost:9527, got %q", cfg.BaseURL)
 	}
@@ -29,6 +33,7 @@ func TestLoadDefaults(t *testing.T) {
 func TestLoadEnvOverrides(t *testing.T) {
 	t.Setenv("PORT", "8888")
 	t.Setenv("FEEDS_DIR", "/tmp/custom_feeds")
+	t.Setenv("HANDLES_DIR", "/tmp/custom_handles")
 	t.Setenv("BASE_URL", "https://rss.example.com")
 
 	cfg := LoadFromArgs(nil, 9527, 30*time.Minute)
@@ -37,6 +42,9 @@ func TestLoadEnvOverrides(t *testing.T) {
 	}
 	if cfg.FeedsDir != "/tmp/custom_feeds" {
 		t.Errorf("expected overridden feeds dir, got %q", cfg.FeedsDir)
+	}
+	if cfg.HandlesDir != "/tmp/custom_handles" {
+		t.Errorf("expected overridden handles dir, got %q", cfg.HandlesDir)
 	}
 	if cfg.BaseURL != "https://rss.example.com" {
 		t.Errorf("expected overridden base url, got %q", cfg.BaseURL)

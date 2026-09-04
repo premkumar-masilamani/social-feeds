@@ -40,3 +40,10 @@ bin/
 
 # Headless browser profile and session cache
 .browser_profile/
+
+# Private social media handles (any platform)
+handles/*.local.txt
+handles/*.private.txt
+handles/local/
+handles/private/
+

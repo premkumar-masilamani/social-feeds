@@ -37,17 +37,26 @@ make lint
 make run
 ```
 
-### 2. Configure Profiles
+### 2. Configure Handles
 
-Add profile URLs or usernames to `instagram.txt` (one per line). Supported formats:
+Add social media handles to the `handles/` directory (one handle per line):
 
 ```text
-# Examples of supported formats:
-https://www.instagram.com/natgeo/
-https://instagram.com/nasa
-@cristiano
-leomessi
+# handles/instagram.txt
+myu_stories
+@natgeo
+nasa
 ```
+
+#### How to Extract the Handle Name from Any URL:
+- **Profile URL** (`https://www.instagram.com/myu_stories/`): Take the name right after `instagram.com/`: **`myu_stories`**.
+- **Share Link** (`https://www.instagram.com/natgeo/?igsh=...`): Ignore `?igsh=...` and take the name: **`natgeo`**.
+- **Post or Reel URL** (`https://www.instagram.com/reel/DcFuLeATEc9/`): Look at the creator's avatar/username on the post page.
+
+#### Private / Uncommitted Handles:
+To track personal or private handles without committing them to git, create a `.local.txt` file:
+- `handles/instagram.local.txt` (or `handles/private/instagram.txt`)
+All `*.local.txt` and `private/` files are automatically ignored by git. During sync, public and private handles are seamlessly merged and deduplicated.
 
 ### 3. Open Web Dashboard
 
@@ -83,6 +92,7 @@ The default HTTP port is set to **`9527`** (avoiding standard software developme
 | :--- | :--- | :--- | :--- |
 | HTTP Port | `-port <int>` | `PORT` | `9527` |
 | Poll Frequency | `-poll <duration>` | - | `1h` (e.g., `5m`, `30m`, `24h`) |
+| Handles Directory | `-handles-dir <path>` | `HANDLES_DIR` | `./handles` |
 | Feeds Directory | `-feeds-dir <path>` | `FEEDS_DIR` | `./feeds` |
 | Base URL | `-base-url <url>` | `BASE_URL` | `http://localhost:9527` |
 | Browser Data Dir | - | `BROWSER_DATA_DIR` | `./.browser_profile` |

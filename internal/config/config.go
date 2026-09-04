@@ -13,6 +13,7 @@ type Config struct {
 	Port         int
 	PollInterval time.Duration
 	FeedsDir     string
+	HandlesDir   string
 	BaseURL      string
 }
 
@@ -35,12 +36,18 @@ func LoadFromArgs(args []string, defaultPort int, defaultPollInterval time.Durat
 		feedsDir = "./feeds"
 	}
 
+	handlesDir := os.Getenv("HANDLES_DIR")
+	if handlesDir == "" {
+		handlesDir = "./handles"
+	}
+
 	baseURL := os.Getenv("BASE_URL")
 
 	fs := flag.NewFlagSet("social-rss", flag.ContinueOnError)
 	flagPort := fs.Int("port", port, "HTTP server listening port")
 	flagPoll := fs.Duration("poll", defaultPollInterval, "Periodic poll interval (e.g. 5m, 1h, 24h)")
 	flagDir := fs.String("feeds-dir", feedsDir, "Directory to store generated feeds")
+	flagHandles := fs.String("handles-dir", handlesDir, "Directory containing platform handle files (e.g. ./handles)")
 	flagURL := fs.String("base-url", baseURL, "Base URL for feed links in XML (defaults to http://localhost:<port>)")
 	_ = fs.Parse(args)
 
@@ -53,6 +60,7 @@ func LoadFromArgs(args []string, defaultPort int, defaultPollInterval time.Durat
 		Port:         *flagPort,
 		PollInterval: *flagPoll,
 		FeedsDir:     *flagDir,
+		HandlesDir:   *flagHandles,
 		BaseURL:      finalURL,
 	}
 }

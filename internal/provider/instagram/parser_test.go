@@ -30,22 +30,19 @@ func TestParseTarget(t *testing.T) {
 			wantErr:    false,
 		},
 		{
-			name:       "Full HTTPS URL with trailing slash",
-			input:      "https://www.instagram.com/natgeo/",
-			wantHandle: "natgeo",
-			wantErr:    false,
+			name:    "Full HTTPS URL is rejected",
+			input:   "https://www.instagram.com/natgeo/",
+			wantErr: true,
 		},
 		{
-			name:       "HTTP URL without trailing slash",
-			input:      "http://instagram.com/natgeo",
-			wantHandle: "natgeo",
-			wantErr:    false,
+			name:    "HTTP URL is rejected",
+			input:   "http://instagram.com/natgeo",
+			wantErr: true,
 		},
 		{
-			name:       "URL with query parameters",
-			input:      "https://www.instagram.com/natgeo/?igsh=MWF5eA==",
-			wantHandle: "natgeo",
-			wantErr:    false,
+			name:    "URL with query parameters is rejected",
+			input:   "https://www.instagram.com/natgeo/?igsh=MWF5eA==",
+			wantErr: true,
 		},
 		{
 			name:       "Whitespace padded line",
@@ -65,12 +62,12 @@ func TestParseTarget(t *testing.T) {
 		},
 		{
 			name:    "Reserved word / explore",
-			input:   "https://www.instagram.com/explore/",
+			input:   "explore",
 			wantErr: true,
 		},
 		{
 			name:    "Reserved word / reels",
-			input:   "https://www.instagram.com/reels/",
+			input:   "reels",
 			wantErr: true,
 		},
 		{
