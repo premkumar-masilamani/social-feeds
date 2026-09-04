@@ -1,0 +1,10 @@
+# Public Instagram Profiles (one URL or handle per line)
+# Supported formats:
+#   https://www.instagram.com/username/
+#   https://instagram.com/username
+#   @username
+#   username
+
+# Examples:
+# natgeo
+# nasa

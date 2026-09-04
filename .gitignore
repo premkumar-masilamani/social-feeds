@@ -30,3 +30,10 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Local feeds directory
+feeds/
+
+# Local binary output
+/social-rss
+bin/
