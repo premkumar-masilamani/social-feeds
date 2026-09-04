@@ -63,9 +63,12 @@ func TestGenerateAtomXML(t *testing.T) {
 	if !strings.Contains(xmlStr, `<id>https://www.instagram.com/p/post-123/</id>`) {
 		t.Errorf("entry ID not found")
 	}
-	// Verify thumbnail image tag is embedded into HTML content
-	if !strings.Contains(xmlStr, `<img src="https://scontent.cdninstagram.com/v/sample.jpg"`) {
-		t.Errorf("thumbnail img tag missing from content: %s", xmlStr)
+	// Verify thumbnail image tag is wrapped in an anchor link to make it clickable
+	if !strings.Contains(xmlStr, `<a href="https://www.instagram.com/p/post-123/" target="_blank" rel="noopener noreferrer"><img src="https://scontent.cdninstagram.com/v/sample.jpg" alt="Photo"`) {
+		t.Errorf("clickable thumbnail img tag missing from content: %s", xmlStr)
+	}
+	if strings.Contains(xmlStr, "View post on") {
+		t.Errorf("did not expect separate 'View post on' text link when thumbnail is present: %s", xmlStr)
 	}
 	if !strings.Contains(xmlStr, "A breathtaking view of the mountains.") {
 		t.Errorf("caption text missing from entry content")
@@ -97,39 +100,42 @@ func TestCleanEntryTitleAndContent(t *testing.T) {
 	}{
 		{
 			post: model.Post{
-				URL:         "https://www.instagram.com/reel/DcFuLeATEc9/",
-				Caption:     "Video by Samyuktha Ranilakshmi on August 15, 2026. May be an image of child, dancing, smiling and text.",
-				PublishedAt: fixedTime,
-				IsVideo:     true,
+				URL:          "https://www.instagram.com/reel/DcFuLeATEc9/",
+				Caption:      "Video by Samyuktha Ranilakshmi on August 15, 2026. May be an image of child, dancing, smiling and text.",
+				ThumbnailURL: "https://scontent.cdninstagram.com/v/sample.jpg",
+				PublishedAt:  fixedTime,
+				IsVideo:      true,
 			},
 			expectedTitle: "Video",
 			expectedDesc:  "",
-			expectInHTML:  "View post on Instagram",
-			expectNotIn:   "May be an image of",
+			expectInHTML:  `<a href="https://www.instagram.com/reel/DcFuLeATEc9/" target="_blank" rel="noopener noreferrer"><img src="https://scontent.cdninstagram.com/v/sample.jpg" alt="Video"`,
+			expectNotIn:   "View post on",
 		},
 		{
 			post: model.Post{
-				URL:         "https://www.instagram.com/p/xyz/",
-				Caption:     "Photo by Samyuktha Ranilakshmi on October 01, 2022.",
-				PublishedAt: fixedTime,
-				IsVideo:     false,
+				URL:          "https://www.instagram.com/p/xyz/",
+				Caption:      "Photo by Samyuktha Ranilakshmi on October 01, 2022.",
+				ThumbnailURL: "https://scontent.cdninstagram.com/v/sample_photo.jpg",
+				PublishedAt:  fixedTime,
+				IsVideo:      false,
 			},
 			expectedTitle: "Photo",
 			expectedDesc:  "",
-			expectInHTML:  "View post on Instagram",
-			expectNotIn:   "Photo by Samyuktha",
+			expectInHTML:  `<a href="https://www.instagram.com/p/xyz/" target="_blank" rel="noopener noreferrer"><img src="https://scontent.cdninstagram.com/v/sample_photo.jpg" alt="Photo"`,
+			expectNotIn:   "View post on",
 		},
 		{
 			post: model.Post{
-				URL:         "https://www.instagram.com/p/nature123/",
-				Caption:     "A day in the woods enjoying nature.",
-				PublishedAt: fixedTime,
-				IsVideo:     false,
+				URL:          "https://www.instagram.com/p/nature123/",
+				Caption:      "A day in the woods enjoying nature.",
+				ThumbnailURL: "https://scontent.cdninstagram.com/v/nature.jpg",
+				PublishedAt:  fixedTime,
+				IsVideo:      false,
 			},
 			expectedTitle: "Photo",
 			expectedDesc:  "A day in the woods enjoying nature.",
-			expectInHTML:  "<p>A day in the woods enjoying nature.</p>",
-			expectNotIn:   "May be an image of",
+			expectInHTML:  `<a href="https://www.instagram.com/p/nature123/" target="_blank" rel="noopener noreferrer"><img src="https://scontent.cdninstagram.com/v/nature.jpg" alt="Photo"`,
+			expectNotIn:   "View post on",
 		},
 		{
 			post: model.Post{
@@ -152,7 +158,7 @@ func TestCleanEntryTitleAndContent(t *testing.T) {
 			},
 			expectedTitle: "Photo",
 			expectedDesc:  "",
-			expectInHTML:  "View post on Instagram",
+			expectInHTML:  "View post on instagram",
 			expectNotIn:   "<p></p>",
 		},
 	}

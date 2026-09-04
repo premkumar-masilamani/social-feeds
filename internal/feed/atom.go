@@ -166,13 +166,22 @@ func extractRealDescription(caption string) string {
 	return cleaned
 }
 
-// buildContentHTML formats post body into rich HTML embedding thumbnail and real descriptions if present.
+// buildContentHTML formats post body into rich HTML with a clickable thumbnail and real descriptions if present.
 func buildContentHTML(profile *model.Profile, post model.Post, description string) string {
 	var contentHTML strings.Builder
 	if post.ThumbnailURL != "" {
+		altText := getEntryTitle(post)
 		contentHTML.WriteString(fmt.Sprintf(
-			`<p><img src="%s" alt="Thumbnail" style="max-width: 100%%; border-radius: 8px;" /></p>`,
+			`<p><a href="%s" target="_blank" rel="noopener noreferrer"><img src="%s" alt="%s" style="max-width: 100%%; border-radius: 8px;" /></a></p>`,
+			html.EscapeString(post.URL),
 			html.EscapeString(post.ThumbnailURL),
+			html.EscapeString(altText),
+		))
+	} else if post.URL != "" {
+		contentHTML.WriteString(fmt.Sprintf(
+			`<p><a href="%s" target="_blank" rel="noopener noreferrer">View post on %s</a></p>`,
+			html.EscapeString(post.URL),
+			html.EscapeString(profile.Platform),
 		))
 	}
 	if description != "" {
@@ -183,11 +192,6 @@ func buildContentHTML(profile *model.Profile, post model.Post, description strin
 			contentHTML.WriteString(fmt.Sprintf("<p>%s</p>", lineBreaks))
 		}
 	}
-	contentHTML.WriteString(fmt.Sprintf(
-		`<p><a href="%s" target="_blank" rel="noopener noreferrer">View post on %s</a></p>`,
-		html.EscapeString(post.URL),
-		strings.Title(profile.Platform),
-	))
 	return contentHTML.String()
 }
 
