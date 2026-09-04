@@ -59,17 +59,16 @@ func TestShortcodeExtraction(t *testing.T) {
 		{href: "/reel/DcFuLeATEc9/", expected: "DcFuLeATEc9"},
 		{href: "/myu_stories/p/DW_6haMiEsX/", expected: "DW_6haMiEsX"},
 		{href: "/myu_stories/reel/DU-zjM6CIlT/", expected: "DU-zjM6CIlT"},
+		{href: "/reels/DU-zjM6CIlT/", expected: "DU-zjM6CIlT"},
+		{href: "/samyuktha.ra/reel/DZhqagnOnFNGYq7YKn414FStUGtD2pnz8obJmg0/", expected: "DZhqagnOnFN"},
+		{href: "/chickenbiriyaniii/reel/DUTGRLQD7xVEWi8L3Fjwe1deYx7P1lQoM2NV5c0/", expected: "DUTGRLQD7xV"},
 		{href: "/explore/", expected: ""},
 	}
 
 	for _, tt := range tests {
-		m := shortcodeRegex.FindStringSubmatch(tt.href)
-		got := ""
-		if len(m) > 1 {
-			got = m[1]
-		}
+		got := extractShortcode(tt.href)
 		if got != tt.expected {
-			t.Errorf("for %q, got %q, want %q", tt.href, got, tt.expected)
+			t.Errorf("extractShortcode(%q) = %q, want %q", tt.href, got, tt.expected)
 		}
 	}
 }

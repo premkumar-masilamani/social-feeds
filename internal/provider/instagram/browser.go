@@ -17,8 +17,24 @@ import (
 
 var (
 	dateRegex      = regexp.MustCompile(`(?i)(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})`)
-	shortcodeRegex = regexp.MustCompile(`/(?:p|reel)/([A-Za-z0-9_-]+)`)
+	shortcodeRegex = regexp.MustCompile(`/(?:p|reels?)/([A-Za-z0-9_-]+)`)
 )
+
+// extractShortcode parses the unique post/reel shortcode from an Instagram URL or href.
+// Instagram shortcodes are base64-encoded 64-bit integer identifiers and are at most 11 characters.
+// Any characters beyond 11 in the path segment (such as tracking hashes or session tokens on shared reels)
+// are trimmed to ensure canonical links resolve directly rather than redirecting to a random video.
+func extractShortcode(href string) string {
+	matches := shortcodeRegex.FindStringSubmatch(href)
+	if len(matches) < 2 {
+		return ""
+	}
+	code := matches[1]
+	if len(code) > 11 {
+		code = code[:11]
+	}
+	return code
+}
 
 // RawDOMPost represents raw post data extracted from the browser DOM.
 type RawDOMPost struct {
@@ -156,11 +172,7 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 	orderedShortcodes := make([]string, 0)
 	addRawItems := func(items []RawDOMPost) {
 		for _, item := range items {
-			shortcode := ""
-			matches := shortcodeRegex.FindStringSubmatch(item.HRef)
-			if len(matches) > 1 {
-				shortcode = matches[1]
-			}
+			shortcode := extractShortcode(item.HRef)
 			if shortcode != "" {
 				if _, exists := allRawMap[shortcode]; !exists {
 					allRawMap[shortcode] = item
@@ -239,7 +251,8 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 		}
 
 		postURL := fmt.Sprintf("https://www.instagram.com/p/%s/", sc)
-		if strings.Contains(item.HRef, "/reel/") {
+		isVideo := strings.Contains(item.HRef, "/reel")
+		if isVideo {
 			postURL = fmt.Sprintf("https://www.instagram.com/reel/%s/", sc)
 		}
 
@@ -255,7 +268,7 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 			ThumbnailURL: item.ImgURL,
 			PublishedAt:  pubTime,
 			Author:       profile.Handle,
-			IsVideo:      strings.Contains(item.HRef, "/reel/"),
+			IsVideo:      isVideo,
 		})
 	}
 
