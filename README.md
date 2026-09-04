@@ -11,8 +11,7 @@ It runs quietly in the background on your machine, maintains dual feeds per prof
 - ⚡ **Zero Binary Media Downloads:** Only downloads metadata (captions, timestamps, URLs, author) and embeds remote CDN thumbnail images (`<img src="...">`) directly inside feed items so your RSS reader displays pictures without bloating your hard drive.
 - 🔄 **Dual Atom Feeds Per Profile:**
   - `<handle>-feed.xml`: Latest 50 posts (fast reader parsing, minimal overhead).
-  - `<handle>-all-feed.xml`: Cumulative archive of all posts seen over time.
-- 🛡️ **Polite & Rate-Limit Resilient:** Built-in polite jitter (3–6s) between requests and exponential backoff to respect Instagram rate limits. Supports optional session cookie (`INSTAGRAM_SESSION_ID`) to bypass login walls.
+- 🛡️ **Headless Chrome Automation:** Uses automated headless Chrome via Chrome DevTools Protocol (`chromedp`) with automatic login (`INSTAGRAM_USERNAME` and `INSTAGRAM_PASSWORD`) to navigate Instagram exactly like a browser user, bypassing raw HTTP rate-limiting and login blocks.
 - 🔁 **Idempotent Delta Syncing:** Uses the XML feeds on disk as the state store to detect known posts, merge new content, and prevent duplicates.
 - 🖥️ **Web Dashboard & "Sync Now":** Embedded web dashboard on `http://localhost:9527` displaying profiles, feed URLs, item counts, file sizes, and an on-demand "Sync Now" button.
 - 🔌 **Extensible Architecture:** Designed with a `PlatformProvider` interface. Auto-detects input files (e.g., `instagram.txt`, future `facebook.txt`, `x.txt`).
@@ -85,7 +84,8 @@ The default HTTP port is set to **`9527`** (avoiding standard software developme
 | Poll Frequency | `-poll <duration>` | - | `1h` (e.g., `5m`, `30m`, `24h`) |
 | Feeds Directory | `-feeds-dir <path>` | `FEEDS_DIR` | `./feeds` |
 | Base URL | `-base-url <url>` | `BASE_URL` | `http://localhost:9527` |
-| Instagram Session | - | `INSTAGRAM_SESSION_ID` | Optional (used if login wall encountered) |
+| Instagram Username | - | `INSTAGRAM_USERNAME` | Username in `.env` |
+| Instagram Password | - | `INSTAGRAM_PASSWORD` | Password in `.env` |
 
 ---
 

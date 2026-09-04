@@ -8,3 +8,4 @@
 # Examples:
 # natgeo
 # nasa
+myu_stories

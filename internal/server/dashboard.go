@@ -48,11 +48,11 @@ func ParseSyncNotice(rawErr string) *SyncNotice {
 		}
 	}
 
-	if strings.Contains(lower, "401") || strings.Contains(lower, "login wall") || strings.Contains(lower, "instagram_session_id") {
+	if strings.Contains(lower, "login failed") || strings.Contains(lower, "instagram_username") || strings.Contains(lower, "instagram_password") || strings.Contains(lower, "login wall") || strings.Contains(lower, "401") {
 		return &SyncNotice{
-			Title:    "Instagram Session Required or Expired (HTTP 401)",
-			Message:  "Instagram is enforcing a login wall on this public profile, requiring an active session cookie.",
-			Remedy:   "Copy your browser's sessionid cookie, save it in your .env file as INSTAGRAM_SESSION_ID=..., and click \"Sync Now\".",
+			Title:    "Instagram Login Required",
+			Message:  "Instagram requires logging into an account to access profile posts.",
+			Remedy:   "Set your INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in the .env file and click \"Sync Now\".",
 			Severity: "error",
 			RawError: rawErr,
 		}

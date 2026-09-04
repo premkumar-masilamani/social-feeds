@@ -188,13 +188,13 @@ func TestParseSyncNotice(t *testing.T) {
 		t.Errorf("remedy should advise waiting: %s", notice429.Remedy)
 	}
 
-	// Login wall 401
+	// Login wall / login required
 	notice401 := ParseSyncNotice("access denied (HTTP 401) by Instagram for @user (login wall)")
-	if notice401 == nil || notice401.Severity != "error" || !contains(notice401.Title, "401") {
+	if notice401 == nil || notice401.Severity != "error" || !contains(notice401.Title, "Login Required") {
 		t.Errorf("unexpected 401 notice: %+v", notice401)
 	}
-	if !contains(notice401.Remedy, "INSTAGRAM_SESSION_ID") {
-		t.Errorf("remedy should advise setting INSTAGRAM_SESSION_ID: %s", notice401.Remedy)
+	if !contains(notice401.Remedy, "INSTAGRAM_USERNAME") {
+		t.Errorf("remedy should advise setting INSTAGRAM_USERNAME: %s", notice401.Remedy)
 	}
 }
 
