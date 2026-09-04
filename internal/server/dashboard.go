@@ -375,10 +375,10 @@ const indexTemplate = `<!DOCTYPE html>
             </div>
 
             <div class="feed-links">
-              <!-- Recent Feed (50 Items) -->
+              <!-- Recent Feed (Capped at RecentFeedLimit) -->
               <div class="feed-box">
                 <div class="feed-box-header">
-                  <span class="badge badge-recent">Recent 50 Posts</span>
+                  <span class="badge badge-recent">Recent Feed (15 Posts)</span>
                   <span class="feed-stats">{{.RecentItemCount}} items &bull; {{.RecentFileSizeBytes}} B</span>
                 </div>
                 <div class="feed-url-row">

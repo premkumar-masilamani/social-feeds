@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"html"
+	"regexp"
 	"strings"
 	"time"
 
@@ -107,6 +108,11 @@ func GenerateAtomXML(profile *model.Profile, posts []model.Post, feedSelfURL str
 	return buf.Bytes(), nil
 }
 
+var (
+	metaAltRegex = regexp.MustCompile(`(?i)^(Photo|Video|Reel)\s+by\s+(.*?)\s+on\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})\.?(?:\s*May be an?\s+(?:image|illustration|audio)\s+of\s*(.*))?$`)
+	mayBeRegex   = regexp.MustCompile(`(?i)\.?\s*May be an?\s+(?:image|illustration|audio)\s+of\s*([^.]*)\.?`)
+)
+
 func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
 	pubTime := post.PublishedAt.UTC()
 	if pubTime.IsZero() {
@@ -114,39 +120,8 @@ func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
 	}
 	timeStr := pubTime.Format(time.RFC3339)
 
-	// Create concise title snippet from caption or fallback to date
-	entryTitle := post.Caption
-	if entryTitle == "" {
-		entryTitle = fmt.Sprintf("Post on %s", pubTime.Format("Jan 02, 2006"))
-	} else {
-		entryTitle = strings.ReplaceAll(entryTitle, "\n", " ")
-		runes := []rune(entryTitle)
-		if len(runes) > 90 {
-			entryTitle = string(runes[:87]) + "..."
-		}
-	}
-
-	// Build rich HTML content embedding the remote CDN image
-	var contentHTML strings.Builder
-	if post.ThumbnailURL != "" {
-		contentHTML.WriteString(fmt.Sprintf(
-			`<p><img src="%s" alt="Thumbnail" style="max-width: 100%%; border-radius: 8px;" /></p>`,
-			html.EscapeString(post.ThumbnailURL),
-		))
-	}
-	if post.Caption != "" {
-		escapedCaption := html.EscapeString(post.Caption)
-		paragraphs := strings.Split(escapedCaption, "\n\n")
-		for _, p := range paragraphs {
-			lineBreaks := strings.ReplaceAll(p, "\n", "<br />")
-			contentHTML.WriteString(fmt.Sprintf("<p>%s</p>", lineBreaks))
-		}
-	}
-	contentHTML.WriteString(fmt.Sprintf(
-		`<p><a href="%s" target="_blank" rel="noopener noreferrer">View post on %s</a></p>`,
-		html.EscapeString(post.URL),
-		strings.Title(profile.Platform),
-	))
+	entryTitle := cleanEntryTitle(post.Caption, pubTime)
+	contentHTML := buildContentHTML(profile, post)
 
 	return AtomEntry{
 		Title:     entryTitle,
@@ -160,9 +135,86 @@ func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
 		},
 		Content: &AtomContent{
 			Type:  "html",
-			Value: contentHTML.String(),
+			Value: contentHTML,
 		},
 	}
+}
+
+// cleanEntryTitle creates a concise, human-readable title from caption text.
+func cleanEntryTitle(caption string, pubTime time.Time) string {
+	if caption == "" {
+		return fmt.Sprintf("Post on %s", pubTime.Format("Jan 02, 2006"))
+	}
+	m := metaAltRegex.FindStringSubmatch(caption)
+	if len(m) >= 4 {
+		postType := m[1]
+		author := m[2]
+		dateStr := m[3]
+		if author != "" {
+			return fmt.Sprintf("%s by %s - %s", postType, author, dateStr)
+		}
+		return fmt.Sprintf("%s - %s", postType, dateStr)
+	}
+
+	// Clean out any "May be an image of..." artifact from raw text
+	cleaned := mayBeRegex.ReplaceAllString(caption, "")
+	cleaned = strings.TrimSpace(strings.ReplaceAll(cleaned, "\n", " "))
+	if cleaned == "" {
+		return fmt.Sprintf("Post on %s", pubTime.Format("Jan 02, 2006"))
+	}
+	runes := []rune(cleaned)
+	if len(runes) > 90 {
+		return string(runes[:87]) + "..."
+	}
+	return cleaned
+}
+
+// buildContentHTML formats post body into rich HTML embedding thumbnail and clean descriptions.
+func buildContentHTML(profile *model.Profile, post model.Post) string {
+	var contentHTML strings.Builder
+	if post.ThumbnailURL != "" {
+		contentHTML.WriteString(fmt.Sprintf(
+			`<p><img src="%s" alt="Thumbnail" style="max-width: 100%%; border-radius: 8px;" /></p>`,
+			html.EscapeString(post.ThumbnailURL),
+		))
+	}
+	if post.Caption != "" {
+		m := metaAltRegex.FindStringSubmatch(post.Caption)
+		if len(m) >= 4 {
+			postType := m[1]
+			author := m[2]
+			dateStr := m[3]
+			tags := ""
+			if len(m) >= 5 && m[4] != "" {
+				tags = strings.TrimSpace(strings.TrimSuffix(m[4], "."))
+			}
+			contentHTML.WriteString(fmt.Sprintf(
+				"<p><strong>%s by %s on %s</strong></p>",
+				html.EscapeString(postType),
+				html.EscapeString(author),
+				html.EscapeString(dateStr),
+			))
+			if tags != "" {
+				contentHTML.WriteString(fmt.Sprintf(
+					"<p><em>Detected content: %s</em></p>",
+					html.EscapeString(tags),
+				))
+			}
+		} else {
+			escapedCaption := html.EscapeString(post.Caption)
+			paragraphs := strings.Split(escapedCaption, "\n\n")
+			for _, p := range paragraphs {
+				lineBreaks := strings.ReplaceAll(p, "\n", "<br />")
+				contentHTML.WriteString(fmt.Sprintf("<p>%s</p>", lineBreaks))
+			}
+		}
+	}
+	contentHTML.WriteString(fmt.Sprintf(
+		`<p><a href="%s" target="_blank" rel="noopener noreferrer">View post on %s</a></p>`,
+		html.EscapeString(post.URL),
+		strings.Title(profile.Platform),
+	))
+	return contentHTML.String()
 }
 
 // ParseAtomFeed parses raw Atom XML bytes into an AtomFeed struct.

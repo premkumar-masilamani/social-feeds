@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	RecentFeedLimit = 50
+	RecentFeedLimit = 15
 	RecentSuffix    = "-feed.xml"
 	AllSuffix       = "-all-feed.xml"
 )
@@ -36,7 +36,7 @@ func (s *Storage) BaseDir() string {
 	return s.baseDir
 }
 
-// GetRecentFeedPath returns the file path for the 50-item feed.
+// GetRecentFeedPath returns the file path for the recent-items feed (capped at RecentFeedLimit).
 func (s *Storage) GetRecentFeedPath(platform, handle string) string {
 	return filepath.Join(s.baseDir, platform, handle+RecentSuffix)
 }
@@ -169,7 +169,7 @@ func (s *Storage) SavePosts(baseURL string, profile *model.Profile, newPosts []m
 		return fmt.Errorf("writing archive feed to %q: %w", archivePath, err)
 	}
 
-	// 2. Generate and save capped recent feed (latest 50)
+	// 2. Generate and save capped recent feed (latest RecentFeedLimit items)
 	recentPosts := merged
 	if len(recentPosts) > RecentFeedLimit {
 		recentPosts = recentPosts[:RecentFeedLimit]

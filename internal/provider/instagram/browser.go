@@ -86,6 +86,7 @@ func (b *BrowserClient) ensureBrowser(parentCtx context.Context) (context.Contex
 		chromedp.Flag("disable-gpu", true),
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("window-size", "1280,900"),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"),
 	)
@@ -125,34 +126,47 @@ func (b *BrowserClient) Login(ctx context.Context) error {
 		return err
 	}
 
-	var currentURL, pageTitle string
+	var currentURL string
+	var hasLoginInputs bool
 	log.Println("[Browser] Checking Instagram authentication status...")
 
 	err = chromedp.Run(browserCtx,
-		chromedp.Navigate("https://www.instagram.com/"),
-		chromedp.Sleep(3*time.Second),
+		chromedp.Navigate("https://www.instagram.com/accounts/login/"),
+		chromedp.Sleep(4*time.Second),
 		chromedp.Location(&currentURL),
-		chromedp.Title(&pageTitle),
+		chromedp.Evaluate(`Boolean(document.querySelector('input[name="username"], input[name="email"], input[type="password"], input[name="pass"]'))`, &hasLoginInputs),
 	)
 	if err != nil {
-		return fmt.Errorf("loading homepage: %w", err)
+		return fmt.Errorf("checking login status: %w", err)
 	}
 
-	// Check if already logged in
-	if !strings.Contains(currentURL, "/accounts/login") && !strings.Contains(currentURL, "/accounts/emailsignup") {
+	// If redirected away from /accounts/login and no login inputs exist, session is active
+	if !hasLoginInputs && !strings.Contains(currentURL, "/accounts/login") {
 		log.Println("[Browser] Active logged-in session detected in browser profile.")
 		b.isLoggedIn = true
 		return nil
 	}
 
-	log.Printf("[Browser] Logging into Instagram as @%s...", username)
+	log.Printf("[Browser] Logging into Instagram as %s...", username)
+
+	fillAndSubmitJS := fmt.Sprintf(`
+		(() => {
+			const u = document.querySelector('input[name="username"]') || document.querySelector('input[name="email"]');
+			const p = document.querySelector('input[name="password"]') || document.querySelector('input[name="pass"]');
+			if (!u || !p) return false;
+			u.value = %q;
+			u.dispatchEvent(new Event('input', { bubbles: true }));
+			p.value = %q;
+			p.dispatchEvent(new Event('input', { bubbles: true }));
+			const btn = document.querySelector('button[type="submit"]');
+			if (btn) btn.click();
+			return true;
+		})()
+	`, username, password)
+
+	var submitted bool
 	loginAction := chromedp.Tasks{
-		chromedp.Navigate("https://www.instagram.com/accounts/login/"),
-		chromedp.Sleep(2 * time.Second),
-		chromedp.WaitVisible(`input[name="username"]`, chromedp.ByQuery),
-		chromedp.SendKeys(`input[name="username"]`, username, chromedp.ByQuery),
-		chromedp.SendKeys(`input[name="password"]`, password, chromedp.ByQuery),
-		chromedp.Click(`button[type="submit"]`, chromedp.ByQuery),
+		chromedp.Evaluate(fillAndSubmitJS, &submitted),
 		chromedp.Sleep(6 * time.Second),
 		chromedp.Location(&currentURL),
 	}
@@ -238,25 +252,95 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 		}
 	}
 
-	posts := make([]model.Post, 0, len(rawItems))
-
-	for _, item := range rawItems {
-		shortcode := ""
-		matches := shortcodeRegex.FindStringSubmatch(item.HRef)
-		if len(matches) > 1 {
-			shortcode = matches[1]
+	allRawMap := make(map[string]RawDOMPost)
+	orderedShortcodes := make([]string, 0)
+	addRawItems := func(items []RawDOMPost) {
+		for _, item := range items {
+			shortcode := ""
+			matches := shortcodeRegex.FindStringSubmatch(item.HRef)
+			if len(matches) > 1 {
+				shortcode = matches[1]
+			}
+			if shortcode != "" {
+				if _, exists := allRawMap[shortcode]; !exists {
+					allRawMap[shortcode] = item
+					orderedShortcodes = append(orderedShortcodes, shortcode)
+				}
+			}
 		}
-		if shortcode == "" {
-			continue
-		}
+	}
 
-		if sinceID != "" && shortcode == sinceID {
+	addRawItems(rawItems)
+	log.Printf("[Browser] Initial grid loaded with %d posts for @%s", len(orderedShortcodes), profile.Handle)
+
+	// Infinite scrolling loop: Instagram initial grid shows 12 items.
+	// Clicking "Show more posts" expands to ~36 items, and scrolling down
+	// loads subsequent batches into the DOM. Because Instagram virtualizes
+	// (unmounts earlier items) during deep scrolling, we accumulate into
+	// allRawMap after each scroll pass.
+	scrollScript := `
+		(() => {
+			const buttons = Array.from(document.querySelectorAll('div[role="button"]'));
+			const btn = buttons.find(b => b.innerText && b.innerText.includes('Show more posts'));
+			if (btn) btn.click();
+
+			window.scrollTo(0, document.body.scrollHeight || document.documentElement.scrollHeight);
+			const sv = document.getElementById('scrollview') || document.querySelector('div[id="scrollview"]');
+			if (sv) sv.scrollTop = sv.scrollHeight;
+			const anchors = document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]');
+			if (anchors.length > 0) anchors[anchors.length - 1].scrollIntoView();
+		})()
+	`
+
+	const maxScrollIterations = 5
+	consecutiveNoNewCount := 0
+
+	for iter := 1; iter <= maxScrollIterations; iter++ {
+		// If sinceID is set and we've already collected it, stop scrolling early for fast delta sync
+		if sinceID != "" && allRawMap[sinceID].HRef != "" {
+			log.Printf("[Browser] Encountered previous latest post %s for @%s; stopping scroll early", sinceID, profile.Handle)
 			break
 		}
 
-		postURL := fmt.Sprintf("https://www.instagram.com/p/%s/", shortcode)
+		prevCount := len(orderedShortcodes)
+		var scrolledItems []RawDOMPost
+
+		scrollTasks := chromedp.Tasks{
+			chromedp.Evaluate(scrollScript, nil),
+			chromedp.Sleep(2500 * time.Millisecond),
+			chromedp.Evaluate(extractScript, &scrolledItems),
+		}
+
+		if err := chromedp.Run(browserCtx, scrollTasks); err != nil {
+			log.Printf("[Browser] Warning on scroll iteration %d for @%s: %v", iter, profile.Handle, err)
+			break
+		}
+
+		addRawItems(scrolledItems)
+		newFound := len(orderedShortcodes) - prevCount
+		log.Printf("[Browser] Scroll iteration %d for @%s: found %d new items (total unique: %d)", iter, profile.Handle, newFound, len(orderedShortcodes))
+
+		if newFound == 0 {
+			consecutiveNoNewCount++
+			if consecutiveNoNewCount >= 2 {
+				break
+			}
+		} else {
+			consecutiveNoNewCount = 0
+		}
+	}
+
+	posts := make([]model.Post, 0, len(orderedShortcodes))
+
+	for _, sc := range orderedShortcodes {
+		item := allRawMap[sc]
+		if sinceID != "" && sc == sinceID {
+			break
+		}
+
+		postURL := fmt.Sprintf("https://www.instagram.com/p/%s/", sc)
 		if strings.Contains(item.HRef, "/reel/") {
-			postURL = fmt.Sprintf("https://www.instagram.com/reel/%s/", shortcode)
+			postURL = fmt.Sprintf("https://www.instagram.com/reel/%s/", sc)
 		}
 
 		pubTime := parseCaptionDate(item.Caption)
@@ -265,7 +349,7 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 		}
 
 		posts = append(posts, model.Post{
-			ID:           shortcode,
+			ID:           sc,
 			URL:          postURL,
 			Caption:      item.Caption,
 			ThumbnailURL: item.ImgURL,
@@ -275,7 +359,7 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 		})
 	}
 
-	log.Printf("[Browser] Extracted %d posts for @%s", len(posts), profile.Handle)
+	log.Printf("[Browser] Extracted total %d posts for @%s", len(posts), profile.Handle)
 	return posts, nil
 }
 

@@ -84,3 +84,61 @@ func TestGenerateAtomXML(t *testing.T) {
 		t.Errorf("got entry ID %q, want https://www.instagram.com/p/post-123/", parsed.Entries[0].ID)
 	}
 }
+
+func TestCleanEntryTitleAndContent(t *testing.T) {
+	fixedTime := time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		caption       string
+		expectedTitle string
+		expectInHTML  string
+		expectNotIn   string
+	}{
+		{
+			caption:       "Video by Samyuktha Ranilakshmi on August 15, 2026. May be an image of child, dancing, smiling and text.",
+			expectedTitle: "Video by Samyuktha Ranilakshmi - August 15, 2026",
+			expectInHTML:  "<em>Detected content: child, dancing, smiling and text</em>",
+			expectNotIn:   "May be an image of",
+		},
+		{
+			caption:       "Photo by Samyuktha Ranilakshmi on October 01, 2022.",
+			expectedTitle: "Photo by Samyuktha Ranilakshmi - October 01, 2022",
+			expectInHTML:  "<strong>Photo by Samyuktha Ranilakshmi on October 01, 2022</strong>",
+			expectNotIn:   "May be an image of",
+		},
+		{
+			caption:       "A day in the woods enjoying nature.",
+			expectedTitle: "A day in the woods enjoying nature.",
+			expectInHTML:  "<p>A day in the woods enjoying nature.</p>",
+			expectNotIn:   "Detected content",
+		},
+		{
+			caption:       "",
+			expectedTitle: "Post on Aug 15, 2026",
+			expectInHTML:  "View post on Instagram",
+			expectNotIn:   "Detected content",
+		},
+	}
+
+	profile := &model.Profile{Platform: "instagram", Handle: "myu_stories"}
+
+	for _, tt := range tests {
+		title := cleanEntryTitle(tt.caption, fixedTime)
+		if title != tt.expectedTitle {
+			t.Errorf("caption %q: got title %q, want %q", tt.caption, title, tt.expectedTitle)
+		}
+
+		post := model.Post{
+			URL:         "https://www.instagram.com/p/xyz/",
+			Caption:     tt.caption,
+			PublishedAt: fixedTime,
+		}
+		htmlContent := buildContentHTML(profile, post)
+		if !strings.Contains(htmlContent, tt.expectInHTML) {
+			t.Errorf("caption %q: expected HTML to contain %q, got: %s", tt.caption, tt.expectInHTML, htmlContent)
+		}
+		if tt.expectNotIn != "" && strings.Contains(htmlContent, tt.expectNotIn) {
+			t.Errorf("caption %q: did not expect HTML to contain %q, got: %s", tt.caption, tt.expectNotIn, htmlContent)
+		}
+	}
+}

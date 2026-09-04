@@ -103,7 +103,7 @@ func TestSavePostsAndIdempotentDelta(t *testing.T) {
 	}
 }
 
-func TestCapRecentFeedAt50(t *testing.T) {
+func TestCapRecentFeedAtLimit(t *testing.T) {
 	tempDir := t.TempDir()
 	storage := NewStorage(tempDir)
 
@@ -160,8 +160,8 @@ func TestCapRecentFeedAt50(t *testing.T) {
 		t.Fatalf("expected 1 stat entry, got %d", len(stats))
 	}
 	s := stats[0]
-	if s.RecentItemCount != 50 || s.AllItemCount != 65 {
-		t.Errorf("expected (recent=50, all=65), got (recent=%d, all=%d)", s.RecentItemCount, s.AllItemCount)
+	if s.RecentItemCount != RecentFeedLimit || s.AllItemCount != 65 {
+		t.Errorf("expected (recent=%d, all=65), got (recent=%d, all=%d)", RecentFeedLimit, s.RecentItemCount, s.AllItemCount)
 	}
 	if s.RecentFileSizeBytes <= 0 || s.AllFileSizeBytes <= 0 {
 		t.Errorf("expected positive file sizes, got recent=%d, all=%d", s.RecentFileSizeBytes, s.AllFileSizeBytes)
