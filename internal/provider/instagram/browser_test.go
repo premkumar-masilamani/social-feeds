@@ -60,8 +60,8 @@ func TestShortcodeExtraction(t *testing.T) {
 		{href: "/myu_stories/p/DW_6haMiEsX/", expected: "DW_6haMiEsX"},
 		{href: "/myu_stories/reel/DU-zjM6CIlT/", expected: "DU-zjM6CIlT"},
 		{href: "/reels/DU-zjM6CIlT/", expected: "DU-zjM6CIlT"},
-		{href: "/samyuktha.ra/reel/DZhqagnOnFNGYq7YKn414FStUGtD2pnz8obJmg0/", expected: "DZhqagnOnFN"},
-		{href: "/chickenbiriyaniii/reel/DUTGRLQD7xVEWi8L3Fjwe1deYx7P1lQoM2NV5c0/", expected: "DUTGRLQD7xV"},
+		{href: "/samyuktha.ra/reel/DZhqagnOnFNGYq7YKn414FStUGtD2pnz8obJmg0/", expected: "DZhqagnOnFNGYq7YKn414FStUGtD2pnz8obJmg0"},
+		{href: "/chickenbiriyaniii/reel/DUTGRLQD7xVEWi8L3Fjwe1deYx7P1lQoM2NV5c0/", expected: "DUTGRLQD7xVEWi8L3Fjwe1deYx7P1lQoM2NV5c0"},
 		{href: "/explore/", expected: ""},
 	}
 

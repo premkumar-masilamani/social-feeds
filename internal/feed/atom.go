@@ -112,6 +112,7 @@ func GenerateAtomXML(profile *model.Profile, posts []model.Post, feedSelfURL str
 var (
 	metaAltRegex = regexp.MustCompile(`(?i)^(Photo|Video|Reel)\s+by\s+(.*?)\s+on\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})`)
 	mayBeRegex   = regexp.MustCompile(`(?i)\.?\s*May be an?\s+(?:image|illustration|audio)\s+of\s*([^.]*)\.?`)
+	reelRegex    = regexp.MustCompile(`/(?:p|reels?)/([A-Za-z0-9_-]+)`)
 )
 
 func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
@@ -143,12 +144,20 @@ func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
 	}
 }
 
-// getEntryTitle returns simply "Video" or "Photo".
+// getEntryTitle returns "Collab Video", "Video", or "Photo".
 func getEntryTitle(post model.Post) string {
-	if post.IsVideo || strings.Contains(strings.ToLower(post.URL), "/reel/") || strings.HasPrefix(strings.ToLower(post.Caption), "video") || strings.HasPrefix(strings.ToLower(post.Caption), "reel") {
+	if post.IsCollab || strings.EqualFold(post.Caption, "Collab Video") || isCollabURL(post.URL) {
+		return "Collab Video"
+	}
+	if post.IsVideo || strings.Contains(strings.ToLower(post.URL), "/reel") || strings.HasPrefix(strings.ToLower(post.Caption), "video") || strings.HasPrefix(strings.ToLower(post.Caption), "reel") {
 		return "Video"
 	}
 	return "Photo"
+}
+
+func isCollabURL(urlStr string) bool {
+	matches := reelRegex.FindStringSubmatch(urlStr)
+	return len(matches) > 1 && len(matches[1]) > 11
 }
 
 // extractRealDescription extracts genuine user captions, discarding Meta's computer vision alt text.

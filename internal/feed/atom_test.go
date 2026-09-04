@@ -161,6 +161,33 @@ func TestCleanEntryTitleAndContent(t *testing.T) {
 			expectInHTML:  "View post on instagram",
 			expectNotIn:   "<p></p>",
 		},
+		{
+			post: model.Post{
+				URL:          "https://www.instagram.com/reel/DZhqagnOnFNGYq7YKn414FStUGtD2pnz8obJmg0/",
+				Caption:      "Video by Sam on June 13, 2026.",
+				ThumbnailURL: "https://scontent.cdninstagram.com/v/collab.jpg",
+				PublishedAt:  fixedTime,
+				IsVideo:      true,
+				IsCollab:     true,
+			},
+			expectedTitle: "Collab Video",
+			expectedDesc:  "",
+			expectInHTML:  `<a href="https://www.instagram.com/reel/DZhqagnOnFNGYq7YKn414FStUGtD2pnz8obJmg0/" target="_blank" rel="noopener noreferrer"><img src="https://scontent.cdninstagram.com/v/collab.jpg" alt="Collab Video"`,
+			expectNotIn:   "View post on",
+		},
+		{
+			post: model.Post{
+				URL:          "https://www.instagram.com/reel/DUTGRLQD7xVEWi8L3Fjwe1deYx7P1lQoM2NV5c0/",
+				Caption:      "",
+				ThumbnailURL: "https://scontent.cdninstagram.com/v/collab2.jpg",
+				PublishedAt:  fixedTime,
+				IsVideo:      true,
+			},
+			expectedTitle: "Collab Video",
+			expectedDesc:  "",
+			expectInHTML:  `<a href="https://www.instagram.com/reel/DUTGRLQD7xVEWi8L3Fjwe1deYx7P1lQoM2NV5c0/" target="_blank" rel="noopener noreferrer"><img src="https://scontent.cdninstagram.com/v/collab2.jpg" alt="Collab Video"`,
+			expectNotIn:   "View post on",
+		},
 	}
 
 	profile := &model.Profile{Platform: "instagram", Handle: "myu_stories"}

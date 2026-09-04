@@ -11,6 +11,7 @@ type Post struct {
 	PublishedAt  time.Time `json:"published_at"`
 	Author       string    `json:"author"`
 	IsVideo      bool      `json:"is_video"`
+	IsCollab     bool      `json:"is_collab,omitempty"`
 }
 
 // Profile represents a target social media user profile.

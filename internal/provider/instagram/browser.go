@@ -20,20 +20,13 @@ var (
 	shortcodeRegex = regexp.MustCompile(`/(?:p|reels?)/([A-Za-z0-9_-]+)`)
 )
 
-// extractShortcode parses the unique post/reel shortcode from an Instagram URL or href.
-// Instagram shortcodes are base64-encoded 64-bit integer identifiers and are at most 11 characters.
-// Any characters beyond 11 in the path segment (such as tracking hashes or session tokens on shared reels)
-// are trimmed to ensure canonical links resolve directly rather than redirecting to a random video.
+// extractShortcode parses the post/reel identifier from an Instagram URL or href without modifying the raw identifier.
 func extractShortcode(href string) string {
 	matches := shortcodeRegex.FindStringSubmatch(href)
 	if len(matches) < 2 {
 		return ""
 	}
-	code := matches[1]
-	if len(code) > 11 {
-		code = code[:11]
-	}
-	return code
+	return matches[1]
 }
 
 // RawDOMPost represents raw post data extracted from the browser DOM.
@@ -261,6 +254,15 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 			pubTime = time.Now()
 		}
 
+		isCollab := len(sc) > 11
+		trimmed := strings.Trim(item.HRef, "/")
+		parts := strings.Split(trimmed, "/")
+		if len(parts) >= 3 && (parts[1] == "reel" || parts[1] == "reels" || parts[1] == "p") {
+			if profile.Handle != "" && !strings.EqualFold(parts[0], profile.Handle) {
+				isCollab = true
+			}
+		}
+
 		posts = append(posts, model.Post{
 			ID:           sc,
 			URL:          postURL,
@@ -269,6 +271,7 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 			PublishedAt:  pubTime,
 			Author:       profile.Handle,
 			IsVideo:      isVideo,
+			IsCollab:     isCollab,
 		})
 	}
 
