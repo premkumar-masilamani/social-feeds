@@ -2,32 +2,43 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
+	"time"
 )
 
-func TestLoadDotEnv(t *testing.T) {
-	tempDir := t.TempDir()
-	envFile := filepath.Join(tempDir, ".env")
-	content := `
-# Comment line
-TEST_KEY_ONE=alpha
-TEST_KEY_TWO="beta"
-TEST_KEY_THREE='gamma'
-`
-	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
-		t.Fatalf("failed to write test .env: %v", err)
-	}
+func TestLoadDefaults(t *testing.T) {
+	os.Unsetenv("PORT")
+	os.Unsetenv("FEEDS_DIR")
+	os.Unsetenv("BASE_URL")
 
-	LoadDotEnv(envFile)
+	cfg := LoadFromArgs(nil, 9527, 1*time.Hour)
+	if cfg.Port != 9527 {
+		t.Errorf("expected default port 9527, got %d", cfg.Port)
+	}
+	if cfg.PollInterval != 1*time.Hour {
+		t.Errorf("expected default poll interval 1h, got %v", cfg.PollInterval)
+	}
+	if cfg.FeedsDir != "./feeds" {
+		t.Errorf("expected default feeds dir ./feeds, got %q", cfg.FeedsDir)
+	}
+	if cfg.BaseURL != "http://localhost:9527" {
+		t.Errorf("expected default base url http://localhost:9527, got %q", cfg.BaseURL)
+	}
+}
 
-	if val := os.Getenv("TEST_KEY_ONE"); val != "alpha" {
-		t.Errorf("expected alpha, got %q", val)
+func TestLoadEnvOverrides(t *testing.T) {
+	t.Setenv("PORT", "8888")
+	t.Setenv("FEEDS_DIR", "/tmp/custom_feeds")
+	t.Setenv("BASE_URL", "https://rss.example.com")
+
+	cfg := LoadFromArgs(nil, 9527, 30*time.Minute)
+	if cfg.Port != 8888 {
+		t.Errorf("expected overridden port 8888, got %d", cfg.Port)
 	}
-	if val := os.Getenv("TEST_KEY_TWO"); val != "beta" {
-		t.Errorf("expected beta, got %q", val)
+	if cfg.FeedsDir != "/tmp/custom_feeds" {
+		t.Errorf("expected overridden feeds dir, got %q", cfg.FeedsDir)
 	}
-	if val := os.Getenv("TEST_KEY_THREE"); val != "gamma" {
-		t.Errorf("expected gamma, got %q", val)
+	if cfg.BaseURL != "https://rss.example.com" {
+		t.Errorf("expected overridden base url, got %q", cfg.BaseURL)
 	}
 }

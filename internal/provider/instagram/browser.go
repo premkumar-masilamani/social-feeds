@@ -31,21 +31,15 @@ type RawDOMPost struct {
 type BrowserClient struct {
 	userDataDir   string
 	headless      bool
-	username      string
-	password      string
 	mu            sync.Mutex
 	allocCtx      context.Context
 	allocCancel   context.CancelFunc
 	browserCtx    context.Context
 	browserCancel context.CancelFunc
-	isLoggedIn    bool
 }
 
-// NewBrowserClient initializes a headless browser client.
+// NewBrowserClient initializes a headless browser client using the local persistent profile.
 func NewBrowserClient() *BrowserClient {
-	username := strings.TrimSpace(os.Getenv("INSTAGRAM_USERNAME"))
-	password := strings.TrimSpace(os.Getenv("INSTAGRAM_PASSWORD"))
-
 	userDataDir := os.Getenv("BROWSER_DATA_DIR")
 	if userDataDir == "" {
 		userDataDir = filepath.Join(".", ".browser_profile")
@@ -54,21 +48,7 @@ func NewBrowserClient() *BrowserClient {
 	return &BrowserClient{
 		userDataDir: userDataDir,
 		headless:    true,
-		username:    username,
-		password:    password,
 	}
-}
-
-func (b *BrowserClient) getCredentials() (string, string) {
-	u := b.username
-	if u == "" {
-		u = strings.TrimSpace(os.Getenv("INSTAGRAM_USERNAME"))
-	}
-	p := b.password
-	if p == "" {
-		p = strings.TrimSpace(os.Getenv("INSTAGRAM_PASSWORD"))
-	}
-	return u, p
 }
 
 func (b *BrowserClient) ensureBrowser(parentCtx context.Context) (context.Context, error) {
@@ -110,79 +90,6 @@ func (b *BrowserClient) Close() {
 	}
 	b.browserCtx = nil
 	b.allocCtx = nil
-	b.isLoggedIn = false
-}
-
-// Login performs an automated login to Instagram if credentials are provided and session is unauthenticated.
-func (b *BrowserClient) Login(ctx context.Context) error {
-	username, password := b.getCredentials()
-	if username == "" || password == "" {
-		log.Println("[Browser] Warning: INSTAGRAM_USERNAME or INSTAGRAM_PASSWORD not configured in .env; proceeding in guest mode")
-		return nil
-	}
-
-	browserCtx, err := b.ensureBrowser(ctx)
-	if err != nil {
-		return err
-	}
-
-	var currentURL string
-	var hasLoginInputs bool
-	log.Println("[Browser] Checking Instagram authentication status...")
-
-	err = chromedp.Run(browserCtx,
-		chromedp.Navigate("https://www.instagram.com/accounts/login/"),
-		chromedp.Sleep(4*time.Second),
-		chromedp.Location(&currentURL),
-		chromedp.Evaluate(`Boolean(document.querySelector('input[name="username"], input[name="email"], input[type="password"], input[name="pass"]'))`, &hasLoginInputs),
-	)
-	if err != nil {
-		return fmt.Errorf("checking login status: %w", err)
-	}
-
-	// If redirected away from /accounts/login and no login inputs exist, session is active
-	if !hasLoginInputs && !strings.Contains(currentURL, "/accounts/login") {
-		log.Println("[Browser] Active logged-in session detected in browser profile.")
-		b.isLoggedIn = true
-		return nil
-	}
-
-	log.Printf("[Browser] Logging into Instagram as %s...", username)
-
-	fillAndSubmitJS := fmt.Sprintf(`
-		(() => {
-			const u = document.querySelector('input[name="username"]') || document.querySelector('input[name="email"]');
-			const p = document.querySelector('input[name="password"]') || document.querySelector('input[name="pass"]');
-			if (!u || !p) return false;
-			u.value = %q;
-			u.dispatchEvent(new Event('input', { bubbles: true }));
-			p.value = %q;
-			p.dispatchEvent(new Event('input', { bubbles: true }));
-			const btn = document.querySelector('button[type="submit"]');
-			if (btn) btn.click();
-			return true;
-		})()
-	`, username, password)
-
-	var submitted bool
-	loginAction := chromedp.Tasks{
-		chromedp.Evaluate(fillAndSubmitJS, &submitted),
-		chromedp.Sleep(6 * time.Second),
-		chromedp.Location(&currentURL),
-	}
-
-	if err := chromedp.Run(browserCtx, loginAction); err != nil {
-		return fmt.Errorf("login submission failed: %w", err)
-	}
-
-	log.Printf("[Browser] Post-login URL: %s", currentURL)
-	if strings.Contains(currentURL, "/accounts/login") {
-		return fmt.Errorf("Instagram login failed; check INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in .env")
-	}
-
-	b.isLoggedIn = true
-	log.Println("[Browser] Logged in successfully.")
-	return nil
 }
 
 // FetchProfilePosts navigates to the public Instagram profile and extracts posts from the DOM.
@@ -193,13 +100,6 @@ func (b *BrowserClient) FetchProfilePosts(ctx context.Context, profile *model.Pr
 	browserCtx, err := b.ensureBrowser(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	// Attempt login if not already done
-	if !b.isLoggedIn {
-		if err := b.Login(browserCtx); err != nil {
-			log.Printf("[Browser] Login attempt warning: %v", err)
-		}
 	}
 
 	profileURL := fmt.Sprintf("https://www.instagram.com/%s/", profile.Handle)

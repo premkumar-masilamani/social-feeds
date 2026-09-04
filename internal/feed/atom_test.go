@@ -89,56 +89,93 @@ func TestCleanEntryTitleAndContent(t *testing.T) {
 	fixedTime := time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		caption       string
+		post          model.Post
 		expectedTitle string
+		expectedDesc  string
 		expectInHTML  string
 		expectNotIn   string
 	}{
 		{
-			caption:       "Video by Samyuktha Ranilakshmi on August 15, 2026. May be an image of child, dancing, smiling and text.",
-			expectedTitle: "Video by Samyuktha Ranilakshmi - August 15, 2026",
-			expectInHTML:  "<em>Detected content: child, dancing, smiling and text</em>",
-			expectNotIn:   "May be an image of",
-		},
-		{
-			caption:       "Photo by Samyuktha Ranilakshmi on October 01, 2022.",
-			expectedTitle: "Photo by Samyuktha Ranilakshmi - October 01, 2022",
-			expectInHTML:  "<strong>Photo by Samyuktha Ranilakshmi on October 01, 2022</strong>",
-			expectNotIn:   "May be an image of",
-		},
-		{
-			caption:       "A day in the woods enjoying nature.",
-			expectedTitle: "A day in the woods enjoying nature.",
-			expectInHTML:  "<p>A day in the woods enjoying nature.</p>",
-			expectNotIn:   "Detected content",
-		},
-		{
-			caption:       "",
-			expectedTitle: "Post on Aug 15, 2026",
+			post: model.Post{
+				URL:         "https://www.instagram.com/reel/DcFuLeATEc9/",
+				Caption:     "Video by Samyuktha Ranilakshmi on August 15, 2026. May be an image of child, dancing, smiling and text.",
+				PublishedAt: fixedTime,
+				IsVideo:     true,
+			},
+			expectedTitle: "Video",
+			expectedDesc:  "",
 			expectInHTML:  "View post on Instagram",
-			expectNotIn:   "Detected content",
+			expectNotIn:   "May be an image of",
+		},
+		{
+			post: model.Post{
+				URL:         "https://www.instagram.com/p/xyz/",
+				Caption:     "Photo by Samyuktha Ranilakshmi on October 01, 2022.",
+				PublishedAt: fixedTime,
+				IsVideo:     false,
+			},
+			expectedTitle: "Photo",
+			expectedDesc:  "",
+			expectInHTML:  "View post on Instagram",
+			expectNotIn:   "Photo by Samyuktha",
+		},
+		{
+			post: model.Post{
+				URL:         "https://www.instagram.com/p/nature123/",
+				Caption:     "A day in the woods enjoying nature.",
+				PublishedAt: fixedTime,
+				IsVideo:     false,
+			},
+			expectedTitle: "Photo",
+			expectedDesc:  "A day in the woods enjoying nature.",
+			expectInHTML:  "<p>A day in the woods enjoying nature.</p>",
+			expectNotIn:   "May be an image of",
+		},
+		{
+			post: model.Post{
+				URL:         "https://www.instagram.com/reel/video123/",
+				Caption:     "Surfing the biggest wave of the summer!",
+				PublishedAt: fixedTime,
+				IsVideo:     true,
+			},
+			expectedTitle: "Video",
+			expectedDesc:  "Surfing the biggest wave of the summer!",
+			expectInHTML:  "<p>Surfing the biggest wave of the summer!</p>",
+			expectNotIn:   "May be an image of",
+		},
+		{
+			post: model.Post{
+				URL:         "https://www.instagram.com/p/empty123/",
+				Caption:     "",
+				PublishedAt: fixedTime,
+				IsVideo:     false,
+			},
+			expectedTitle: "Photo",
+			expectedDesc:  "",
+			expectInHTML:  "View post on Instagram",
+			expectNotIn:   "<p></p>",
 		},
 	}
 
 	profile := &model.Profile{Platform: "instagram", Handle: "myu_stories"}
 
 	for _, tt := range tests {
-		title := cleanEntryTitle(tt.caption, fixedTime)
+		title := getEntryTitle(tt.post)
 		if title != tt.expectedTitle {
-			t.Errorf("caption %q: got title %q, want %q", tt.caption, title, tt.expectedTitle)
+			t.Errorf("post %s: got title %q, want %q", tt.post.URL, title, tt.expectedTitle)
 		}
 
-		post := model.Post{
-			URL:         "https://www.instagram.com/p/xyz/",
-			Caption:     tt.caption,
-			PublishedAt: fixedTime,
+		desc := extractRealDescription(tt.post.Caption)
+		if desc != tt.expectedDesc {
+			t.Errorf("post %s: got desc %q, want %q", tt.post.URL, desc, tt.expectedDesc)
 		}
-		htmlContent := buildContentHTML(profile, post)
+
+		htmlContent := buildContentHTML(profile, tt.post, desc)
 		if !strings.Contains(htmlContent, tt.expectInHTML) {
-			t.Errorf("caption %q: expected HTML to contain %q, got: %s", tt.caption, tt.expectInHTML, htmlContent)
+			t.Errorf("post %s: expected HTML to contain %q, got: %s", tt.post.URL, tt.expectInHTML, htmlContent)
 		}
 		if tt.expectNotIn != "" && strings.Contains(htmlContent, tt.expectNotIn) {
-			t.Errorf("caption %q: did not expect HTML to contain %q, got: %s", tt.caption, tt.expectNotIn, htmlContent)
+			t.Errorf("post %s: did not expect HTML to contain %q, got: %s", tt.post.URL, tt.expectNotIn, htmlContent)
 		}
 	}
 }

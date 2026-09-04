@@ -48,11 +48,11 @@ func ParseSyncNotice(rawErr string) *SyncNotice {
 		}
 	}
 
-	if strings.Contains(lower, "login failed") || strings.Contains(lower, "instagram_username") || strings.Contains(lower, "instagram_password") || strings.Contains(lower, "login wall") || strings.Contains(lower, "401") {
+	if strings.Contains(lower, "login failed") || strings.Contains(lower, "login wall") || strings.Contains(lower, "401") || strings.Contains(lower, "login required") {
 		return &SyncNotice{
 			Title:    "Instagram Login Required",
-			Message:  "Instagram requires logging into an account to access profile posts.",
-			Remedy:   "Set your INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in the .env file and click \"Sync Now\".",
+			Message:  "Instagram requires an active logged-in session to access profile posts.",
+			Remedy:   "Ensure you have an active Instagram session in your browser profile (.browser_profile), or log in via browser.",
 			Severity: "error",
 			RawError: rawErr,
 		}

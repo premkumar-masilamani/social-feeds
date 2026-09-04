@@ -51,6 +51,7 @@ type AtomEntry struct {
 	Published string       `xml:"published"`
 	Updated   string       `xml:"updated"`
 	Author    *AtomAuthor  `xml:"author,omitempty"`
+	Summary   string       `xml:"summary,omitempty"`
 	Content   *AtomContent `xml:"content,omitempty"`
 }
 
@@ -109,7 +110,7 @@ func GenerateAtomXML(profile *model.Profile, posts []model.Post, feedSelfURL str
 }
 
 var (
-	metaAltRegex = regexp.MustCompile(`(?i)^(Photo|Video|Reel)\s+by\s+(.*?)\s+on\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})\.?(?:\s*May be an?\s+(?:image|illustration|audio)\s+of\s*(.*))?$`)
+	metaAltRegex = regexp.MustCompile(`(?i)^(Photo|Video|Reel)\s+by\s+(.*?)\s+on\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})`)
 	mayBeRegex   = regexp.MustCompile(`(?i)\.?\s*May be an?\s+(?:image|illustration|audio)\s+of\s*([^.]*)\.?`)
 )
 
@@ -120,8 +121,9 @@ func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
 	}
 	timeStr := pubTime.Format(time.RFC3339)
 
-	entryTitle := cleanEntryTitle(post.Caption, pubTime)
-	contentHTML := buildContentHTML(profile, post)
+	entryTitle := getEntryTitle(post)
+	description := extractRealDescription(post.Caption)
+	contentHTML := buildContentHTML(profile, post, description)
 
 	return AtomEntry{
 		Title:     entryTitle,
@@ -133,6 +135,7 @@ func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
 			Name: post.Author,
 			URI:  profile.URL,
 		},
+		Summary: description,
 		Content: &AtomContent{
 			Type:  "html",
 			Value: contentHTML,
@@ -140,37 +143,31 @@ func buildAtomEntry(profile *model.Profile, post model.Post) AtomEntry {
 	}
 }
 
-// cleanEntryTitle creates a concise, human-readable title from caption text.
-func cleanEntryTitle(caption string, pubTime time.Time) string {
-	if caption == "" {
-		return fmt.Sprintf("Post on %s", pubTime.Format("Jan 02, 2006"))
+// getEntryTitle returns simply "Video" or "Photo".
+func getEntryTitle(post model.Post) string {
+	if post.IsVideo || strings.Contains(strings.ToLower(post.URL), "/reel/") || strings.HasPrefix(strings.ToLower(post.Caption), "video") || strings.HasPrefix(strings.ToLower(post.Caption), "reel") {
+		return "Video"
 	}
-	m := metaAltRegex.FindStringSubmatch(caption)
-	if len(m) >= 4 {
-		postType := m[1]
-		author := m[2]
-		dateStr := m[3]
-		if author != "" {
-			return fmt.Sprintf("%s by %s - %s", postType, author, dateStr)
-		}
-		return fmt.Sprintf("%s - %s", postType, dateStr)
-	}
+	return "Photo"
+}
 
-	// Clean out any "May be an image of..." artifact from raw text
+// extractRealDescription extracts genuine user captions, discarding Meta's computer vision alt text.
+func extractRealDescription(caption string) string {
+	if caption == "" {
+		return ""
+	}
+	// If it matches Meta's accessibility alt text (e.g. "Photo by ... on ... May be an image of ...")
+	if metaAltRegex.MatchString(caption) {
+		return ""
+	}
+	// Strip any standalone "May be an image of..." boilerplate if present
 	cleaned := mayBeRegex.ReplaceAllString(caption, "")
-	cleaned = strings.TrimSpace(strings.ReplaceAll(cleaned, "\n", " "))
-	if cleaned == "" {
-		return fmt.Sprintf("Post on %s", pubTime.Format("Jan 02, 2006"))
-	}
-	runes := []rune(cleaned)
-	if len(runes) > 90 {
-		return string(runes[:87]) + "..."
-	}
+	cleaned = strings.TrimSpace(cleaned)
 	return cleaned
 }
 
-// buildContentHTML formats post body into rich HTML embedding thumbnail and clean descriptions.
-func buildContentHTML(profile *model.Profile, post model.Post) string {
+// buildContentHTML formats post body into rich HTML embedding thumbnail and real descriptions if present.
+func buildContentHTML(profile *model.Profile, post model.Post, description string) string {
 	var contentHTML strings.Builder
 	if post.ThumbnailURL != "" {
 		contentHTML.WriteString(fmt.Sprintf(
@@ -178,35 +175,12 @@ func buildContentHTML(profile *model.Profile, post model.Post) string {
 			html.EscapeString(post.ThumbnailURL),
 		))
 	}
-	if post.Caption != "" {
-		m := metaAltRegex.FindStringSubmatch(post.Caption)
-		if len(m) >= 4 {
-			postType := m[1]
-			author := m[2]
-			dateStr := m[3]
-			tags := ""
-			if len(m) >= 5 && m[4] != "" {
-				tags = strings.TrimSpace(strings.TrimSuffix(m[4], "."))
-			}
-			contentHTML.WriteString(fmt.Sprintf(
-				"<p><strong>%s by %s on %s</strong></p>",
-				html.EscapeString(postType),
-				html.EscapeString(author),
-				html.EscapeString(dateStr),
-			))
-			if tags != "" {
-				contentHTML.WriteString(fmt.Sprintf(
-					"<p><em>Detected content: %s</em></p>",
-					html.EscapeString(tags),
-				))
-			}
-		} else {
-			escapedCaption := html.EscapeString(post.Caption)
-			paragraphs := strings.Split(escapedCaption, "\n\n")
-			for _, p := range paragraphs {
-				lineBreaks := strings.ReplaceAll(p, "\n", "<br />")
-				contentHTML.WriteString(fmt.Sprintf("<p>%s</p>", lineBreaks))
-			}
+	if description != "" {
+		escaped := html.EscapeString(description)
+		paragraphs := strings.Split(escaped, "\n\n")
+		for _, p := range paragraphs {
+			lineBreaks := strings.ReplaceAll(p, "\n", "<br />")
+			contentHTML.WriteString(fmt.Sprintf("<p>%s</p>", lineBreaks))
 		}
 	}
 	contentHTML.WriteString(fmt.Sprintf(

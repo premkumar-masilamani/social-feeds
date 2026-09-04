@@ -2,7 +2,7 @@
 
 A fast, lightweight, and extensible CLI daemon written in Go that generates local **Atom 1.0 XML feeds** for public social media profiles (starting with Instagram).
 
-It runs quietly in the background on your machine, maintains dual feeds per profile (latest 50 posts vs. full archive), performs idempotent delta syncs, and provides a web dashboard on port `9527` with a global **"Sync Now"** button.
+It runs quietly in the background on your machine, maintains dual feeds per profile (latest 15 posts vs. full archive), performs idempotent delta syncs, and provides a web dashboard on port `9527` with a global **"Sync Now"** button.
 
 ---
 
@@ -10,8 +10,9 @@ It runs quietly in the background on your machine, maintains dual feeds per prof
 
 - ⚡ **Zero Binary Media Downloads:** Only downloads metadata (captions, timestamps, URLs, author) and embeds remote CDN thumbnail images (`<img src="...">`) directly inside feed items so your RSS reader displays pictures without bloating your hard drive.
 - 🔄 **Dual Atom Feeds Per Profile:**
-  - `<handle>-feed.xml`: Latest 50 posts (fast reader parsing, minimal overhead).
-- 🛡️ **Headless Chrome Automation:** Uses automated headless Chrome via Chrome DevTools Protocol (`chromedp`) with automatic login (`INSTAGRAM_USERNAME` and `INSTAGRAM_PASSWORD`) to navigate Instagram exactly like a browser user, bypassing raw HTTP rate-limiting and login blocks.
+  - `<handle>-feed.xml`: Latest 15 posts (matching first view of profile grid, minimal reader overhead).
+  - `<handle>-all-feed.xml`: Full cumulative archive of all discovered and scrolled posts.
+- 🛡️ **Headless Chrome Automation:** Uses automated headless Chrome via Chrome DevTools Protocol (`chromedp`) with persistent browser profiles (`.browser_profile`) to seamlessly use your existing logged-in session, navigate profiles, and trigger infinite scrolling.
 - 🔁 **Idempotent Delta Syncing:** Uses the XML feeds on disk as the state store to detect known posts, merge new content, and prevent duplicates.
 - 🖥️ **Web Dashboard & "Sync Now":** Embedded web dashboard on `http://localhost:9527` displaying profiles, feed URLs, item counts, file sizes, and an on-demand "Sync Now" button.
 - 🔌 **Extensible Architecture:** Designed with a `PlatformProvider` interface. Auto-detects input files (e.g., `instagram.txt`, future `facebook.txt`, `x.txt`).
@@ -55,7 +56,7 @@ Navigate to:
 http://localhost:9527
 ```
 Subscribe to any feed link in your favorite RSS reader (e.g. NetNewsWire, Reeder, Feedly, FreshRSS):
-- Recent 50: `http://localhost:9527/feeds/instagram/natgeo-feed.xml`
+- Recent 15: `http://localhost:9527/feeds/instagram/natgeo-feed.xml`
 - Full Archive: `http://localhost:9527/feeds/instagram/natgeo-all-feed.xml`
 
 ---
@@ -84,8 +85,7 @@ The default HTTP port is set to **`9527`** (avoiding standard software developme
 | Poll Frequency | `-poll <duration>` | - | `1h` (e.g., `5m`, `30m`, `24h`) |
 | Feeds Directory | `-feeds-dir <path>` | `FEEDS_DIR` | `./feeds` |
 | Base URL | `-base-url <url>` | `BASE_URL` | `http://localhost:9527` |
-| Instagram Username | - | `INSTAGRAM_USERNAME` | Username in `.env` |
-| Instagram Password | - | `INSTAGRAM_PASSWORD` | Password in `.env` |
+| Browser Data Dir | - | `BROWSER_DATA_DIR` | `./.browser_profile` |
 
 ---
 

@@ -193,8 +193,8 @@ func TestParseSyncNotice(t *testing.T) {
 	if notice401 == nil || notice401.Severity != "error" || !contains(notice401.Title, "Login Required") {
 		t.Errorf("unexpected 401 notice: %+v", notice401)
 	}
-	if !contains(notice401.Remedy, "INSTAGRAM_USERNAME") {
-		t.Errorf("remedy should advise setting INSTAGRAM_USERNAME: %s", notice401.Remedy)
+	if !contains(notice401.Remedy, ".browser_profile") {
+		t.Errorf("remedy should advise checking browser profile: %s", notice401.Remedy)
 	}
 }
 
